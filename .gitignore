@@ -49,3 +49,13 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+
+# Python artifacts
+*.pyc
+
+# Checkpoints
+*.pth
+
+# Datasets
+*.npz
+data/datasets/initial
