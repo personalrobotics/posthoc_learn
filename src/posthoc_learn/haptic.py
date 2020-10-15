@@ -11,7 +11,7 @@ import matplotlib.ticker as ticker
 import shutil
 import math
 from torchvision import transforms
-from util import *
+from posthoc_learn.util import *
 
 np.random.seed(1234)
 torch.manual_seed(1234)
@@ -64,7 +64,7 @@ def crop(time, x_force, y_force, z_force, x_torque, y_torque, z_torque, start_id
     maxForce = max(z_force)
     minForce = min(z_force)
     forceThr = forceThr_arg * maxForce
-    print len(z_force)
+    # print len(z_force)
 
     while not len(z_force_cropped_t)>minDataNum:
         z_time = []
@@ -96,7 +96,7 @@ def crop(time, x_force, y_force, z_force, x_torque, y_torque, z_torque, start_id
             break
         forceThr = forceThr+0.01
 
-    print z_force_idx
+    #print z_force_idx
     if len(z_force_idx) < 1:
       print("cropping failed")
       return False, -1, -1
