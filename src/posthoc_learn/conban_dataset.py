@@ -28,14 +28,16 @@ class ConBanDataset:
     """
 
     # Re-import from consolidated
-    def __init__(self, consolidated_file):
+    def _init_npz(self, consolidated_file):
         try:
             if Path(consolidated_file).exists():
                 data = np.load(consolidated_file, allow_pickle=True)
+            elif (config.consolidated_dir / consolidated_file).exists():
+                data = np.load(config.consolidated_dir / consolidated_file, allow_pickle=True)
             else:
-                data = np.load(config.consolidated_dir / consolidatd_file, allow_pickle=True)
+                data = np.load(config.consolidated_dir / (consolidated_file + ".npz"), allow_pickle=True)
 
-            self.name = Path(consolidatd_file).stem
+            self.name = Path(consolidated_file).stem
 
             self.context = data["context"]
             self.actionDis = data["actionDis"]
@@ -55,7 +57,10 @@ class ConBanDataset:
         self._validate()
 
     # Create dataset from data folder
-    def __init__(self, name, visual_model, haptic_model):
+    def __init__(self, name, visual_model=None, haptic_model=None):
+        if visual_model is None or haptic_model is None:
+            self._init_npz(name)
+            return
         # Check datset dir
         self.name = name
         dataset_dir = config.dataset_dir / name
@@ -199,7 +204,7 @@ class ConBanDataset:
 
 
         # Validate
-        self.validate()
+        self._validate()
 
 
     # Resize Image for SPANet
@@ -217,7 +222,7 @@ class ConBanDataset:
         return img
 
     # Check that dataset is kosher
-    def validate(self):
+    def _validate(self):
         print("### Data Validation: " + self.name + " ###")
 
         # Array Sizes
@@ -260,6 +265,7 @@ class ConBanDataset:
 
         print("### End Data Validation: " + self.name + " ###")
         print()
+        self.num_samples = data_amt
 
 
     # Export dataset to consolidated file (npz compressed)
@@ -276,3 +282,37 @@ class ConBanDataset:
             posthoc = self.posthoc,
             dr_category = self.dr_category,
             dr_loss = self.dr_loss)
+
+    # List Functionality
+    def __len__(self):
+        return self.num_samples
+
+    def __getitem__(self, idx):
+        return self.context[idx, :], self.posthoc[idx, :], self.dr_loss[idx, :]
+
+    def train_test_split(self, split, shuffle=True):
+        assert (split >= 0.0) and (split <= 1.0)
+
+        context = np.copy(self.context)
+        posthoc = np.copy(self.posthoc)
+        dr_loss = np.copy(self.dr_loss)
+
+        if shuffle:
+            indices = np.arange(self.num_samples)
+            np.random.shuffle(indices)
+            context = context[indices, :]
+            posthoc = posthoc[indices, :]
+            dr_loss = dr_loss[indices, :]
+
+        cut_index = (int)(self.num_samples * split)
+
+        train_context = np.copy(context[:cut_index, :])
+        test_context = np.copy(context[cut_index:, :])
+
+        train_posthoc = np.copy(posthoc[:cut_index, :])
+        test_posthoc = np.copy(posthoc[cut_index:, :])
+
+        train_dr_loss = np.copy(dr_loss[:cut_index, :])
+        test_dr_loss = np.copy(dr_loss[cut_index:, :])
+
+        return (train_context, train_posthoc, train_dr_loss), (test_context, test_posthoc, test_dr_loss)

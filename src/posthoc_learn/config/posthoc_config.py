@@ -24,3 +24,6 @@ consolidated_dir = package_dir / "data" / "consolidations"
 dataset_dir = package_dir / "data" / "datasets"
 visual_dir = package_dir / "checkpoint" / "visual"
 haptic_dir = package_dir / "checkpoint" / "haptic"
+
+# Experiment Configuration
+train_split = 0.7
