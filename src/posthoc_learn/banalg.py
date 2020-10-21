@@ -22,18 +22,21 @@ class HardConstraint(object):
         else:
             self.label = "Normal"
 
+        self.reinit()
+
+    def reinit(self):
         # F Linear Regression Params
-        self.phiF = np.zeros((n, dF))
-        self.AF = np.array([np.eye(dF) for i in range(n)]) * lambF
-        self.AFfull = np.eye(dF)
-        self.bF = np.zeros((n, dF))
+        self.phiF = np.zeros((self.n, self.dF))
+        self.AF = np.array([np.eye(self.dF) for i in range(self.n)]) * self.lambF
+        self.AFfull = np.eye(self.dF)
+        self.bF = np.zeros((self.n, self.dF))
 
         # G Linear Regression Params
-        self.phiG = np.zeros((n, dG))
-        self.AG = np.array([np.eye(dG) for i in range(n)]) * lambG
-        self.AGfull = np.eye(dG)
-        self.bG = np.zeros((n, dG))
-        self.AFG = np.zeros((dF, dG))
+        self.phiG = np.zeros((self.n, self.dG))
+        self.AG = np.array([np.eye(self.dG) for i in range(self.n)]) * self.lambG
+        self.AGfull = np.eye(self.dG)
+        self.bG = np.zeros((self.n, self.dG))
+        self.AFG = np.zeros((self.dF, self.dG))
 
     # Default to Random Choice
     def choice(self, t, context):

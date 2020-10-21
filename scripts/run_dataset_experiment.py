@@ -31,11 +31,31 @@ def plot(title, regret, labels):
 
     T = (regret.shape[0] - 1)
     plt.xlim(0, T)
-    plt.xlabel("Time")
-    plt.ylabel("Test MSE")
+    plt.xlabel("Attempts")
+    plt.ylabel("MSE")
     plt.legend()
     plt.show()
 
+def plot_ci(title, means, lower, upper):
+    """
+    @param title: graph title
+    @param regret: T+1 x len(bandits) cumulative regret
+    @param labels: label[i] for bandits[i]
+
+    Plots regret curve.
+    """
+    plt.title(title)
+    t = np.arange(means.shape[0])
+    plt.plot(t, means, label="Mean Difference (Vanilla - Post Hoc)")
+    plt.fill_between(t, lower, upper, alpha=0.2, label="{0}% CI".format(int(100 * config.ci)))
+    plt.plot(t, np.zeros(t.shape), color='black', linewidth=4)
+
+    T = (means.shape[0] - 1)
+    plt.xlim(0, T)
+    plt.xlabel("Attempts")
+    plt.ylabel("MSE Diff")
+    plt.legend()
+    plt.show()
 
 #=================
 # General Bandit Alg
@@ -78,7 +98,7 @@ def run(bandits, training, test):
     return errors
 
 
-def main(name):
+def main(name, nRuns):
 
     # Load Dataset
     print("Loading Dataset...")
@@ -147,19 +167,49 @@ def main(name):
     bandits.append(banalg.HardConstraint(T, n, dF, dG, fLambda, gLambda))
 
     # Run experiment
-    print("Running Experiment...")
-    errors = run(bandits, training, test)
+    if nRuns == 1:
+        print("Running Experiment...")
+        errors = run(bandits, training, test)
 
-    # Plot Cumulative Regret
-    labels = []
-    for bandit in bandits:
-        labels.append(bandit.label)
+        # Plot Cumulative Regret
+        labels = []
+        for bandit in bandits:
+            labels.append(bandit.label)
 
-    title = "Augmented Contextual Bandit Learning"
-    plot(title, errors, labels)
+        title = "Augmented Contextual Bandit Learning"
+        plot(title, errors, labels)
+    else:
+        # Do Bootstrap
+        error_diff = np.zeros((nRuns, T+1))
+        for i in range(nRuns):
+            for bandit in bandits:
+                bandit.reinit()
+            print("Running Experiment {0}:".format(i))
+            training, test = dataset.train_test_split(config.train_split)
+            errors = run(bandits, training, test)
+            diff = errors[:, 0] - errors[:, 1]
+            error_diff[i, :] = diff
+
+        means = np.mean(error_diff, axis=0)
+        sorted_idx = np.argsort(error_diff, axis=0)
+        sorted_ed = np.take_along_axis(error_diff, sorted_idx, axis=0)
+        print("Confidence Interval: " + str(config.ci))
+        lower_idx = int(nRuns * (1.0-config.ci) / 2.0)
+        upper_idx = int(nRuns - 1.0 - lower_idx)
+        print("Lower Index: " + str(lower_idx))
+        print("Upper Index: " + str(upper_idx))
+        lower = sorted_ed[lower_idx, :]
+        upper = sorted_ed[upper_idx, :]
+
+        title = "Post Hoc Bandit Difference"
+        plot_ci(title, means, lower, upper)
+        print("Saving errors_diff.npz:")
+        np.savez_compressed("errors_diff.npz", 
+            error_diff = error_diff)
+
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: main.py <dataset_name>")
+    if len(sys.argv) != 3:
+        print("Usage: main.py <dataset_name> <num_runs>")
         sys.exit(-1)
-    main(str(sys.argv[1]))
+    main(str(sys.argv[1]), int(sys.argv[2]))

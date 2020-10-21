@@ -27,3 +27,4 @@ haptic_dir = package_dir / "checkpoint" / "haptic"
 
 # Experiment Configuration
 train_split = 0.7
+ci = 0.9
