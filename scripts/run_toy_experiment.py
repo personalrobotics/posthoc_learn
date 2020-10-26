@@ -63,12 +63,13 @@ def run(bandits, contexts, posthocs, loss, noise=0):
 
         # Update bandits
         for i, bandit in enumerate(bandits):
-            regrets[t+1, i] = loss[t, I_t[i]] - np.lamin(loss[t, :])
+            regrets[t+1, i] = loss[t, I_t[i]] - np.amin(loss[t, :])
             bandit.update(contexts[t, :], I_t[i], loss[t, I_t[i]] + np.random.normal(0, noise), posthocs[t, :])
 
     # Finished, return error array
     print("Finished T=%d rounds!" % T)
-    return np.cumsum(regrets)
+    cum_regrets = np.cumsum(regrets, axis=0)
+    return cum_regrets
 
 
 def gen_data(T, K, dF, dG):
@@ -81,7 +82,7 @@ def gen_data(T, K, dF, dG):
     Ainv = np.linalg.inv(A.T @ A) @ A.T
     assert Ainv.shape == (dG, K)
 
-    contexts = np.random.uniform(T, dF)
+    contexts = np.random.rand(T, dF)
     assert contexts.shape == (T, dF)
 
     posthocs = contexts[:, :dG]
@@ -106,10 +107,10 @@ def main(T, K, dF, dG):
     bandits = []
 
     # Vanilla Greedy
-    bandits.append(banalg.HardConstraint(T, K, dF, dG, fLambda, 0))
+    bandits.append(banalg.Greedy(T, K, dF, dG, fLambda, 0))
 
     # Post Hoc Greedy
-    bandits.append(banalg.HardConstraint(T, K, dF, dG, fLambda, gLambda))
+    bandits.append(banalg.Greedy(T, K, dF, dG, fLambda, gLambda))
 
     # Run experiment
     print("Running Experiment...")
@@ -122,6 +123,10 @@ def main(T, K, dF, dG):
 
     title = "Augmented Contextual Bandit Regret"
     plot(title, regrets, labels)
+
+    # Save Regret Data
+    np.savez("regrets_{0}_{1}_{2}_{3}.npz".format(T, K, dF, dG),
+        regrets = regrets)
 
 
 if __name__ == '__main__':
