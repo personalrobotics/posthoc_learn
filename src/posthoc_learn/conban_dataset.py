@@ -13,10 +13,10 @@ import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
 
-from bite_selection_package.model.spanet import SPANet
+# from bite_selection_package.model.spanet import SPANet
 from posthoc_learn.haptic import HapticNet, preprocess
 
-from bite_selection_package.config import spanet_config
+# from bite_selection_package.config import spanet_config
 from posthoc_learn.config import posthoc_config as config
 
 from PIL import Image, ImageEnhance, ImageFilter
@@ -291,12 +291,14 @@ class ConBanDataset:
         return self.context[idx, :], self.posthoc[idx, :], self.dr_loss[idx, :]
 
     def train_test_split(self, split, shuffle=True):
+        split = 1.0
         assert (split >= 0.0) and (split <= 1.0)
 
         context = np.copy(self.context)
         posthoc = np.copy(self.posthoc)
         dr_loss = np.copy(self.dr_loss)
-
+        print("Total Samples:")
+        print(self.num_samples)
         if shuffle:
             indices = np.arange(self.num_samples)
             np.random.shuffle(indices)
@@ -307,12 +309,30 @@ class ConBanDataset:
         cut_index = (int)(self.num_samples * split)
 
         train_context = np.copy(context[:cut_index, :])
-        test_context = np.copy(context[cut_index:, :])
+        test_context = train_context#np.copy(context[cut_index:, :])
 
         train_posthoc = np.copy(posthoc[:cut_index, :])
-        test_posthoc = np.copy(posthoc[cut_index:, :])
+        test_posthoc = train_posthoc#np.copy(posthoc[cut_index:, :])
 
         train_dr_loss = np.copy(dr_loss[:cut_index, :])
-        test_dr_loss = np.copy(dr_loss[cut_index:, :])
+        test_dr_loss = train_dr_loss#np.copy(dr_loss[cut_index:, :])
 
         return (train_context, train_posthoc, train_dr_loss), (test_context, test_posthoc, test_dr_loss)
+    
+    def sample_with_replacement(self):
+
+        context = np.copy(self.context)
+        posthoc = np.copy(self.posthoc)
+        dr_loss = np.copy(self.dr_loss)
+        print("Total Samples:")
+        print(self.num_samples)
+
+        indices = np.arange(self.num_samples)
+        # np.random.shuffle(indices)
+        indices = np.random.choice(self.num_samples, 115)
+        context = context[indices, :]
+        posthoc = posthoc[indices, :]
+        dr_loss = dr_loss[indices, :]
+
+
+        return (context, posthoc, dr_loss)
