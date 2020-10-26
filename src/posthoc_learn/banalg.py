@@ -18,9 +18,9 @@ class HardConstraint(object):
         self.usePosthoc = (lambG != 0)
 
         if self.usePosthoc:
-            self.label = "Post Hoc Hard Constraint"
+            self.label = "Random (Post Hoc)"
         else:
-            self.label = "Normal"
+            self.label = "Random"
 
         self.reinit()
 
@@ -83,18 +83,13 @@ class HardConstraint(object):
 class Greedy(HardConstraint):
     def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0):
         super(Greedy, self).__init__(T, n, dF, dG, lambF, lambG)
-        self.usePosthoc = (lambG != 0)
-
         if self.usePosthoc:
-            self.label = "Post Hoc * Greedy"
+            self.label = "Greedy (Post Hoc)"
         else:
-            self.label = "Normal * Greedy"
+            self.label = "Greedy"
         
     def choice(self, t, context):
-        con_shape = context.shape[0]
-        p_dist = np.dot(context, self.phiF.T)
-        
-        return np.argmin(p_dist)
+        return np.argmin(np.dot(context, self.phiF.T))
 
 class EpsilonGreedy(HardConstraint):
     def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0, epsilon=0.1):
