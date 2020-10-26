@@ -107,10 +107,13 @@ def main(T, K, dF, dG):
     bandits = []
 
     # Vanilla Greedy
-    bandits.append(banalg.Greedy(T, K, dF, dG, fLambda, 0))
+    bandits.append(banalg.EpsilonGreedy(T, K, dF, dG, fLambda, 0))
 
     # Post Hoc Greedy
-    bandits.append(banalg.Greedy(T, K, dF, dG, fLambda, gLambda))
+    bandits.append(banalg.EpsilonGreedy(T, K, dF, dG, fLambda, gLambda))
+
+    # Post Hoc Only
+    bandits.append(banalg.EpsilonGreedy(T, K, dF, dG, 0, gLambda))
 
     # Run experiment
     print("Running Experiment...")

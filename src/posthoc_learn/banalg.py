@@ -15,18 +15,26 @@ class HardConstraint(object):
         self.T = T
         self.dF = dF
         self.dG = dG
-        self.usePosthoc = (lambG != 0)
 
-        if self.usePosthoc:
-            self.label = "Random (Post Hoc)"
+        assert (lambF != 0) or (lambG != 0)
+
+        if lambF == 0:
+            self.label = "Post Hoc Only"
+            self.usePosthoc = 2
+        elif lambG != 0:
+            self.label = "Post Hoc"
+            self.usePosthoc = 1
         else:
-            self.label = "Random"
+            self.label = "Normal"
+            self.usePosthoc = 0
 
         self.reinit()
 
     def reinit(self):
-        # F Linear Regression Params
+        # Final Linear Model
         self.phiF = np.zeros((self.n, self.dF))
+
+        # F Linear Regression Params
         self.AF = np.array([np.eye(self.dF) for i in range(self.n)]) * self.lambF
         self.AFfull = np.eye(self.dF)
         self.bF = np.zeros((self.n, self.dF))
@@ -40,8 +48,6 @@ class HardConstraint(object):
 
     # Default to Random Choice
     def choice(self, t, context):
-        print(self.phiF.shape)
-        print(context.shape)
         return (t % self.n)
 
     def update(self, context, arm, loss, posthoc):
@@ -61,15 +67,24 @@ class HardConstraint(object):
         self.AFG += XTP.T
 
         # Linear Regression
-        if not self.usePosthoc:
-            # Normal Ridge Regression
-            self.phiF[arm, :] = np.linalg.solve(self.AF[arm, :], self.bF[arm, :])
-        else:
+        if self.usePosthoc == 2:
+            # Post Hoc Only
+            AFinv = np.linalg.inv(self.AFfull)
+            self.phiG[arm, :] = np.linalg.solve(self.AG[arm, :], self.bG[arm, :])
+            for i in range(self.n):
+                self.phiF[i, :] = AFinv @ self.AFG @ self.phiG[i, :]
+            
+        elif self.usePosthoc == 1:
             # Post Hoc Regression
             AGinv = np.linalg.inv(self.AGfull)
-            A = self.AF[arm, :] + self.AFG @ AGinv @ self.AG[arm, :] @ AGinv @ self.AFG.T
-            B = self.bF[arm, :] + self.AFG @ AGinv @ self.bG[arm, :]
-            self.phiF[arm, :] = np.linalg.solve(A, B)
+            for i in range(self.n):
+                A = self.AF[i, :] + self.AFG @ AGinv @ self.AG[i, :] @ AGinv @ self.AFG.T
+                B = self.bF[i, :] + self.AFG @ AGinv @ self.bG[i, :]
+                self.phiF[i, :] = np.linalg.solve(A, B)
+        else:
+            
+            # Normal Ridge Regression
+            self.phiF[arm, :] = np.linalg.solve(self.AF[arm, :], self.bF[arm, :])
             
 
     def report_mse(self, test_contexts, test_losses):
@@ -83,11 +98,8 @@ class HardConstraint(object):
 class Greedy(HardConstraint):
     def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0):
         super(Greedy, self).__init__(T, n, dF, dG, lambF, lambG)
-        if self.usePosthoc:
-            self.label = "Greedy (Post Hoc)"
-        else:
-            self.label = "Greedy"
-        
+        self.label = self.label = ", Greedy"
+
     def choice(self, t, context):
         return np.argmin(np.dot(context, self.phiF.T))
 
@@ -95,34 +107,24 @@ class EpsilonGreedy(HardConstraint):
     def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0, epsilon=0.1):
         super(EpsilonGreedy, self).__init__(T, n, dF, dG, lambF, lambG)
         self.epsilon = epsilon
-        self.usePosthoc = (lambG != 0)
-
-        if self.usePosthoc:
-            self.label = "Post Hoc * Epsilon Greedy"
-        else:
-            self.label = "Normal * Epsilon Greedy"
+        self.label = self.label + ", {0}-Greedy".format(epsilon)
 
     def choice(self, t, context):
-        con_shape = context.shape[0]
         p_dist = np.dot(context, self.phiF.T)
 
         argmin_k = np.argmin(p_dist)
         prob_vec = np.zeros(self.n) + (self.epsilon) / (self.n)
         prob_vec[argmin_k] += (1.0 - self.epsilon)
 
-        # print(prob_vec)
-        return np.random.choice(np.arange(self.n), 1, p=prob_vec)[0]
+        assert np.isclose(np.sum(prob_vec), 1.0)
+
+        return np.random.choice(np.arange(self.n), None, p=prob_vec)
 
 class LinUCB(HardConstraint):
     def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0, alpha=0.01):
         super(LinUCB, self).__init__(T, n, dF, dG, lambF, lambG)
         self.alpha = alpha
-        self.usePosthoc = (lambG != 0)
-
-        if self.usePosthoc:
-            self.label = "Post Hoc * linUCB"
-        else:
-            self.label = "Normal * linUCB"
+        self.label = self.label + ", LinUCB"
 
         self.Ainv = np.array([np.eye(self.dF) for i in range(self.n)]) * self.lambF
 

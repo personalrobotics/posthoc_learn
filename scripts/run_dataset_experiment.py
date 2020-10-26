@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 import posthoc_learn.banalg as banalg
 from posthoc_learn.config import posthoc_config as config
@@ -70,6 +71,8 @@ def run(bandits, training, test):
     T = training[0].shape[0]
     errors = np.zeros((T + 1, len(bandits)))
 
+    print("Running for {0} rounds!".format(T))
+    start = time.time()
     for t in range(T):
         print("Round: %d" % t)
         for i, bandit in enumerate(bandits):
@@ -95,6 +98,7 @@ def run(bandits, training, test):
 
     # Finished, return error array
     print("Finished T=%d rounds!" % T)
+    print("Time Taken (s): " + str(time.time() - start))
     return errors
 
 
@@ -112,6 +116,9 @@ def main(name, nRuns):
     dG = training[1].shape[1]
     fLambda = 1000.0
     gLambda = 100.0
+
+    print("Training Rounds: " + str(T))
+    print("Testing Rounds: " + str(T_test))
 
     # Best Linear Fit Possible
     print("Best Context Linear Fit...")
