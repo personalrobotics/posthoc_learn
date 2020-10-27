@@ -69,17 +69,17 @@ class HardConstraint(object):
         # Linear Regression
         if self.usePosthoc == 2:
             # Post Hoc Only
-            AFinv = np.linalg.inv(self.AFfull)
+            self.AFinv = np.linalg.inv(self.AFfull)
             self.phiG[arm, :] = np.linalg.solve(self.AG[arm, :], self.bG[arm, :])
             for i in range(self.n):
-                self.phiF[i, :] = AFinv @ self.AFG @ self.phiG[i, :]
+                self.phiF[i, :] = self.AFinv @ self.AFG @ self.phiG[i, :]
             
         elif self.usePosthoc == 1:
             # Post Hoc Regression
-            AGinv = np.linalg.inv(self.AGfull)
+            self.AGinv = np.linalg.inv(self.AGfull)
             for i in range(self.n):
-                A = self.AF[i, :] + self.AFG @ AGinv @ self.AG[i, :] @ AGinv @ self.AFG.T
-                B = self.bF[i, :] + self.AFG @ AGinv @ self.bG[i, :]
+                A = self.AF[i, :] + self.AFG @ self.AGinv @ self.AG[i, :] @ self.AGinv @ self.AFG.T
+                B = self.bF[i, :] + self.AFG @ self.AGinv @ self.bG[i, :]
                 self.phiF[i, :] = np.linalg.solve(A, B)
         else:
             
@@ -136,5 +136,15 @@ class LinUCB(HardConstraint):
 
     def update(self, context, arm, loss, posthoc):
         super(LinUCB, self).update(context, arm, loss, posthoc)
-        self.Ainv[arm] = np.linalg.inv(self.AF[arm])
 
+        if self.usePosthoc == 2:
+            # TODO, figure this out, low priority
+            raise NotImplementedError
+        elif self.usePosthoc == 1:
+            # Post hoc
+            for i in range(self.n):
+                A = self.AF[i, :] + self.AFG @ self.AGinv @ self.AG[i, :] @ self.AGinv @ self.AFG.T
+                self.Ainv[i] = 2.0 * np.linalg.inv(A)
+        else:
+            # Normal Linear Regression
+            self.Ainv[arm] = np.linalg.inv(self.AF[arm])

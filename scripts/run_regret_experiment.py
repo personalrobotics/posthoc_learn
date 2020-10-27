@@ -24,40 +24,17 @@ def plot(title, regret, labels):
 
     Plots regret curve.
     """
-    # plt.title(title)
-    fig = plt.figure()
-    st = fig.suptitle(title, fontsize="x-large")
-    ax1 = fig.add_subplot(311)
-
+    plt.title(title)
     t = np.arange(regret.shape[0])
-    for i in range(0,2):
-        ax1.plot(t, regret[:, i], label=labels[i])
-    ax1.set_title("Greedy")
-    ax1.set_xlabel("Attempts")
-    # ax1.set_ylabel("Cumulative Regret")
-    ax2 = fig.add_subplot(312)
-    for i in range(2,4):
-        ax2.plot(t, regret[:, i], label=labels[i])
-    ax2.set_title("Epsilon-Greedy")
-    ax2.set_xlabel("Attempts")
-    ax2.set_ylabel("Cumulative Regret")
-    ax3 = fig.add_subplot(313)
-    for i in range(4,6):
-        ax3.plot(t, regret[:, i], label=labels[i])
-    ax3.set_title("LinUCB")
-    ax3.set_xlabel("Attempts")
-    # ax3.set_ylabel("Cumulative Regret")
+    for i, l in enumerate(labels):
+        plt.plot(t, regret[:, i], label=l)
 
     T = (regret.shape[0] - 1)
-    ax1.set_xlim(0, T)
-    ax2.set_xlim(0, T)
-    ax3.set_xlim(0, T)
-
-    ax1.legend()
-    # ax2.legend()
-    # ax3.legend()
-    fig.savefig('regret.pdf')
-    # plt.show()
+    plt.xlim(0, T)
+    plt.xlabel("Attempts")
+    plt.ylabel("Cumulative Regret")
+    plt.legend()
+    plt.show()
 
 def plot_ci(title, means, lower, upper):
     """
@@ -69,14 +46,14 @@ def plot_ci(title, means, lower, upper):
     """
     plt.title(title)
     t = np.arange(means.shape[0])
-    plt.plot(t, means, label="Cumulative Regret")
+    plt.plot(t, means, label="Mean Difference (Vanilla - Post Hoc)")
     plt.fill_between(t, lower, upper, alpha=0.2, label="{0}% CI".format(int(100 * config.ci)))
     plt.plot(t, np.zeros(t.shape), color='black', linewidth=4)
 
     T = (means.shape[0] - 1)
     plt.xlim(0, T)
     plt.xlabel("Attempts")
-    plt.ylabel("Cumulative Regret")
+    plt.ylabel("Cumulative Regret Diff")
     plt.legend()
     plt.show()
 
@@ -84,252 +61,111 @@ def plot_ci(title, means, lower, upper):
 # General Bandit Alg
 #=================
 
-def run(bandits, training, test):
+def run(bandits, contexts, posthocs, loss, noise=0):
     """
     @param bandits: list of initialized bandit algorithms
+    @param contexts: T x dF
+    @param posthocs: T x dG
+    @param loss: len(K)
     """
 
     # Define constants
-    T = training[0].shape[0]
-    # print(training[0].shape)
-    # print(training[1].shape)
-    # print(training[2].shape)
-    # print(test[0].shape)
-    # print(test[1].shape)
-    # print(test[2].shape)
-    errors = np.zeros((T + 1, len(bandits)))
+    T = contexts.shape[0]
+    regrets = np.zeros((T + 1, len(bandits)))
 
+    print("Running for {0} rounds!".format(T))
     for t in range(T):
         print("Round: %d" % t)
 
         # Choose arm for each bandit
         I_t = []
-        # I_test = np.zeros((test[2].shape[0], len(bandits)), dtype=int)
-        # for tst in range(test[2].shape[0]):
-        #     for x, bandit in enumerate(bandits):
-        #         I_test[tst][x] = bandit.choice(tst, test[0][tst, :])
-
-        # print(I_test[6])
-    
         for bandit in bandits:
-            I_t.append(bandit.choice(t, training[0][t, :]))
-        # print(I_t)
-        
-        for i, bandit in enumerate(bandits):
-            # rate = bandit.report_mse(test[0], test[2])
-            rate = training[2][t, I_t[i]] - np.min(training[2][t])
-            print("Bandit %d Regret %f" % (i, rate))
-            errors[t, i] = errors[max(0,t-1), i] + rate
+            I_t.append(bandit.choice(t, contexts[t, :]))
 
         # Update bandits
         for i, bandit in enumerate(bandits):
-            bandit.update(training[0][t, :], I_t[i], training[2][t, I_t[i]], training[1][t, :])
-
-    # Final Error Rate
-    print("Final Error Rate Calculation")
-    for i, bandit in enumerate(bandits):
-        # rate = bandit.report_mse(test[0], test[2])
-        rate = training[2][t, I_t[i]] - np.min(training[2][t])
-        print("Bandit %d MSE %f" % (i, rate))
-        errors[T, i] = errors[max(0,T-1), i] + rate
+            regrets[t+1, i] = loss[t, I_t[i]] - np.amin(loss[t, :])
+            bandit.update(contexts[t, :], I_t[i], loss[t, I_t[i]] + np.random.normal(0, noise), posthocs[t, :])
 
     # Finished, return error array
     print("Finished T=%d rounds!" % T)
-    # np.savez_compressed('errors_NB.npz', errors)
-    return errors
-
+    cum_regrets = np.cumsum(regrets, axis=0)
+    return cum_regrets
 
 def main(name, nRuns):
 
     # Load Dataset
     print("Loading Dataset...")
     dataset = ConBanDataset(name)
-    training, test = dataset.train_test_split(config.train_split)
+    env, _ = dataset.train_test_split(1.0)
+    contexts = env[0]
+    posthocs = env[1]
+    losses = env[2]
 
-    test = training
-    # Dimensions
-    T, n = training[2].shape
-    T_test = test[0].shape[0]
-    dF = training[0].shape[1]
-    dG = training[1].shape[1]
+    # Constants
+    T = contexts.shape[0]
+    K = losses.shape[1]
+    dF = contexts.shape[1]
+    dG = posthocs.shape[1]
     fLambda = 1000.0
     gLambda = 100.0
-
-    # Best Linear Fit Possible
-    print("Best Context Linear Fit...")
-    A = fLambda * np.eye(dF)
-    b = np.zeros((dF, n))
-    for t in range(T):
-        A += np.outer(training[0][t, :], training[0][t, :])
-        b += np.outer(training[0][t, :], training[2][t, :])
-    assert A.shape == (dF, dF)
-    assert b.shape == (dF, n)
-    print("Doing Fit")
-    phi = np.linalg.solve(A, b)
-    assert phi.shape == (dF, n)
-
-    print("Testing...")
-    mse = 0.0
-    for i in range(T_test):
-        ans = test[0][i, :] @ phi
-        assert ans.size == n
-        mse += np.linalg.norm(ans - test[2][i, :])
-
-    print("Context MSE: " + str(mse / float(T_test)))
-    print()
-
-    # Best PostHoc Fit Possible
-    print("Best Posthoc Linear Fit...")
-    A = gLambda * np.eye(dG)
-    b = np.zeros((dG, n))
-    for t in range(T):
-        A += np.outer(training[1][t, :], training[1][t, :])
-        b += np.outer(training[1][t, :], training[2][t, :])
-    assert A.shape == (dG, dG)
-    assert b.shape == (dG, n)
-    print("Doing Fit")
-    phi = np.linalg.solve(A, b)
-    assert phi.shape == (dG, n)
-
-    print("Testing...")
-    mse = 0.0
-    for i in range(T_test):
-        ans = test[1][i, :] @ phi
-        assert ans.size == n
-        mse += np.linalg.norm(ans - test[2][i, :])
-
-    print("Posthoc MSE: " + str(mse / float(T_test)))
-    print()
 
     # Define bandits
     bandits = []
 
-    # Test 1: Vanilla vs Hard Constraint
-    # bandits.append(banalg.HardConstraint(T, n, dF, dG, fLambda, 0))
-    # bandits.append(banalg.HardConstraint(T, n, dF, dG, fLambda, gLambda))
-    bandits.append(banalg.Greedy(T, n, dF, dG, fLambda, gLambda))
-    bandits.append(banalg.Greedy(T, n, dF, dG, fLambda, 0))
-    bandits.append(banalg.EpsilonGreedy(T, n, dF, dG, fLambda, gLambda, 0.1))
-    bandits.append(banalg.EpsilonGreedy(T, n, dF, dG, fLambda, 0, 0.1))
-    bandits.append(banalg.LinUCB(T, n, dF, dG, fLambda, gLambda, 0.01))
-    bandits.append(banalg.LinUCB(T, n, dF, dG, fLambda, 0, 0.01))
+    # Vanilla Greedy
+    bandits.append(banalg.LinUCB(T, K, dF, dG, fLambda, 0))
 
-    labels = []
-    for bandit in bandits:
-        labels.append(bandit.label)
+    # Post Hoc Greedy
+    bandits.append(banalg.LinUCB(T, K, dF, dG, fLambda, gLambda))
 
     # Run experiment
+    print("Running Experiment...")
     if nRuns == 1:
-        print("Running Experiment...")
-        errors = run(bandits, training, test)
+        regrets = run(bandits, contexts, posthocs, losses)
 
         # Plot Cumulative Regret
-        
+        labels = []
+        for bandit in bandits:
+            labels.append(bandit.label)
 
-        title = "Augmented Contextual Bandit Learning"
-        plot(title, errors, labels)
+        title = "Augmented Contextual Bandit Regret"
+        plot(title, regrets, labels)
+
+        # Save Regret Data
+        np.savez("regrets_{0}_{1}.npz".format(name, nRuns),
+            regrets = regrets)
     else:
-        # Do Bootstrap
-        error_boot = np.zeros((nRuns, T+1, len(bandits)))
+         # Do Bootstrap
+        error_diff = np.zeros((nRuns, T+1))
+        regrets_save = np.zeros((nRuns, T+1, len(bandits)))
         for i in range(nRuns):
-            #
             for bandit in bandits:
                 bandit.reinit()
             print("Running Experiment {0}:".format(i))
-            training = dataset.sample_with_replacement()
-            test = training
-            errors = run(bandits, training, test)
-            # diff = errors[:, 0] - errors[:, 1]
-            error_boot[i] = errors
-        print("Saving error_boot.npz:")
-        np.savez_compressed("error_boot.npz", error_boot=error_boot)
-        
-        # error_boot = np.load("error_boot.npz", allow_pickle=True)
-        # error_boot = error_boot['error_boot']
+            env = dataset.sample_with_replacement()
+            regrets = run(bandits, env[0], env[1], env[2])
+            diff = regrets[:, 0] - regrets[:, 1]
+            error_diff[i, :] = diff
+            regrets_save[i, :, :] = regrets[:, :]
+
+        means = np.mean(error_diff, axis=0)
+        sorted_idx = np.argsort(error_diff, axis=0)
+        sorted_ed = np.take_along_axis(error_diff, sorted_idx, axis=0)
+        print("Confidence Interval: " + str(config.ci))
+        lower_idx = int(nRuns * (1.0-config.ci) / 2.0)
+        upper_idx = int(nRuns - 1.0 - lower_idx)
+        print("Lower Index: " + str(lower_idx))
+        print("Upper Index: " + str(upper_idx))
+        lower = sorted_ed[lower_idx, :]
+        upper = sorted_ed[upper_idx, :]
+
         title = "Post Hoc Bandit Difference"
-        plt.title(title)
-        for i in range(0,2):                                            # GREEDY
-            means = np.mean(error_boot[:,:,i], axis=0)
-            sorted_idx = np.argsort(error_boot[:,:,i], axis=0)
-            sorted_ed = np.take_along_axis(error_boot[:,:,i], sorted_idx, axis=0)
-            print("Confidence Interval: " + str(config.ci))
-            lower_idx = int(nRuns * (1.0-config.ci) / 2.0)
-            upper_idx = int(nRuns - 1.0 - lower_idx)
-            print("Lower Index: " + str(lower_idx))
-            print("Upper Index: " + str(upper_idx))
-            lower = sorted_ed[lower_idx, :]
-            upper = sorted_ed[upper_idx, :]
-
-            
-            # # plot_ci(title, means, lower, upper)
-            
-            t = np.arange(means.shape[0])
-            plt.plot(t, means, label=labels[i])
-            plt.fill_between(t, lower, upper, alpha=0.2, label="{0}% CI".format(int(100 * config.ci)))
-            plt.plot(t, np.zeros(t.shape), color='black', linewidth=4)
-        
-        T = (means.shape[0] - 1)
-        plt.xlim(0, T)
-        plt.xlabel("Attempts")
-        plt.ylabel("Cumulative Regret")
-        plt.legend()
-        plt.show()
-
-        # UNCOMMENT DURING PLOTTING
-        # for i in range(2,4):                                         # EPSILON - GREEDY
-        #     means = np.mean(error_boot[:,:,i], axis=0)
-        #     sorted_idx = np.argsort(error_boot[:,:,i], axis=0)
-        #     sorted_ed = np.take_along_axis(error_boot[:,:,i], sorted_idx, axis=0)
-        #     print("Confidence Interval: " + str(config.ci))
-        #     lower_idx = int(nRuns * (1.0-config.ci) / 2.0)
-        #     upper_idx = int(nRuns - 1.0 - lower_idx)
-        #     print("Lower Index: " + str(lower_idx))
-        #     print("Upper Index: " + str(upper_idx))
-        #     lower = sorted_ed[lower_idx, :]
-        #     upper = sorted_ed[upper_idx, :]
-
-            
-        #     # # plot_ci(title, means, lower, upper)
-            
-        #     t = np.arange(means.shape[0])
-        #     plt.plot(t, means, label=labels[i])
-        #     plt.fill_between(t, lower, upper, alpha=0.2, label="{0}% CI".format(int(100 * config.ci)))
-        #     plt.plot(t, np.zeros(t.shape), color='black', linewidth=4)
-        
-        # T = (means.shape[0] - 1)
-        # plt.xlim(0, T)
-        # plt.xlabel("Attempts")
-        # plt.ylabel("Cumulative Regret")
-        # plt.legend()
-        # plt.show()
-
-        # for i in range(4,6):                                                     # LIN-UCB
-        #     means = np.mean(error_boot[:,:,i], axis=0)
-        #     sorted_idx = np.argsort(error_boot[:,:,i], axis=0)
-        #     sorted_ed = np.take_along_axis(error_boot[:,:,i], sorted_idx, axis=0)
-        #     print("Confidence Interval: " + str(config.ci))
-        #     lower_idx = int(nRuns * (1.0-config.ci) / 2.0)
-        #     upper_idx = int(nRuns - 1.0 - lower_idx)
-        #     print("Lower Index: " + str(lower_idx))
-        #     print("Upper Index: " + str(upper_idx))
-        #     lower = sorted_ed[lower_idx, :]
-        #     upper = sorted_ed[upper_idx, :]
-
-            
-        #     # # plot_ci(title, means, lower, upper)
-            
-        #     t = np.arange(means.shape[0])
-        #     plt.plot(t, means, label=labels[i])
-        #     plt.fill_between(t, lower, upper, alpha=0.2, label="{0}% CI".format(int(100 * config.ci)))
-        #     plt.plot(t, np.zeros(t.shape), color='black', linewidth=4)
-        
-        # T = (means.shape[0] - 1)
-        # plt.xlim(0, T)
-        # plt.xlabel("Attempts")
-        # plt.ylabel("Cumulative Regret")
-        # plt.legend()
-        # plt.show()
-        
+        plot_ci(title, means, lower, upper)
+        print("Saving errors_diff.npz:")
+        np.savez_compressed("errors_diff.npz", 
+            error_diff = error_diff,
+            regrets = regrets_save)
 
 
 if __name__ == '__main__':
