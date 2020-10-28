@@ -83,7 +83,8 @@ def run(bandits, training, test):
         # Choose arm for each bandit
         I_t = []
         for bandit in bandits:
-            I_t.append(bandit.choice(t, training[0][t, :]))
+            ret, _ = bandit.choice(t, training[0][t, :])
+            I_t.append(ret)
 
         # Update bandits
         for i, bandit in enumerate(bandits):
@@ -170,8 +171,8 @@ def main(name, nRuns):
     bandits = []
 
     # Test 1: Vanilla vs Hard Constraint
-    bandits.append(banalg.HardConstraint(T, n, dF, dG, fLambda, 0))
-    bandits.append(banalg.HardConstraint(T, n, dF, dG, fLambda, gLambda))
+    bandits.append(banalg.HardConstraint(n, dF, dG, fLambda, 0))
+    bandits.append(banalg.HardConstraint(n, dF, dG, fLambda, gLambda))
 
     # Run experiment
     if nRuns == 1:

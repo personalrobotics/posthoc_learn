@@ -14,8 +14,7 @@ from posthoc_learn.config import posthoc_config as config
 from posthoc_learn.conban_dataset import ConBanDataset
 
 def main(name, visual_model, haptic_model):
-    print("Building Dataset...")
-    dataset = ConBanDataset(name, visual_model, haptic_model)
+    dataset = ConBanDataset(name, visual_model, haptic_model, False)
     print()
     
     print("Exporting npz...")

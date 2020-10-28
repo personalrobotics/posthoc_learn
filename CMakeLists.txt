@@ -10,19 +10,21 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 
-####### Optional: Message Generation ##############
+####### Message Generation ##############
 
-#add_service_files(
-#  FILES
-#)
-
-#generate_messages(
-#  DEPENDENCIES
-#  std_msgs
-#)
-
-############# End Message Generation ##############
+add_service_files(
+  FILES
+  GetAction.srv
+  PublishLoss.srv
+)
 
 catkin_python_setup()
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
+
+############# End Message Generation ##############
 
 catkin_package()

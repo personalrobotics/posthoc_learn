@@ -8,11 +8,10 @@ class HardConstraint(object):
     Bandit with Hard Constraint
     Optimizing (f - l)^2 + (g - l)^2 s.t. f=g
     """
-    def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0):
+    def __init__(self, n, dF, dG, lambF=1E-2, lambG=0):
         self.lambF = lambF # F L2 Regularization
         self.lambG = lambG # G L2 Regularization
         self.n = n
-        self.T = T
         self.dF = dF
         self.dG = dG
 
@@ -48,18 +47,23 @@ class HardConstraint(object):
 
     # Default to Random Choice
     def choice(self, t, context):
-        return (t % self.n)
+        return (t % self.n), (np.ones(self.n) / self.n)
 
-    def update(self, context, arm, loss, posthoc):
+    def update(self, context, arm, loss, posthoc, p = 1.0):
+        # Valid Probability
+        assert p > 0.0 and p <= 1.0
+
         # Record Context
-        self.AF[arm, :] += np.outer(context, context)
-        self.AFfull += np.outer(context, context)
-        self.bF[arm, :] += loss * context
+        outer = np.outer(context, context) / p
+        self.AF[arm, :] += outer
+        self.AFfull += outer
+        self.bF[arm, :] += loss * context / p
 
         # Record Posthoc
-        self.AG[arm, :] += np.outer(posthoc, posthoc)
-        self.AGfull += np.outer(posthoc, posthoc)
-        self.bG[arm, :] += loss * posthoc
+        outer = np.outer(posthoc, posthoc) / p
+        self.AG[arm, :] +=  outer
+        self.AGfull += outer
+        self.bG[arm, :] += loss * posthoc / p
 
         # Cross Parameters
         XTP = np.outer(posthoc, context)
@@ -96,16 +100,19 @@ class HardConstraint(object):
         return mse / float(test_contexts.shape[0])
 
 class Greedy(HardConstraint):
-    def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0):
-        super(Greedy, self).__init__(T, n, dF, dG, lambF, lambG)
+    def __init__(self, n, dF, dG, lambF=1E-2, lambG=0):
+        super(Greedy, self).__init__(n, dF, dG, lambF, lambG)
         self.label = self.label = ", Greedy"
 
     def choice(self, t, context):
-        return np.argmin(np.dot(context, self.phiF.T))
+        ret = np.argmin(np.dot(context, self.phiF.T))
+        p = np.zeros(self.n)
+        p[ret] = 1.0
+        return ret, p
 
 class EpsilonGreedy(HardConstraint):
-    def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0, epsilon=0.1):
-        super(EpsilonGreedy, self).__init__(T, n, dF, dG, lambF, lambG)
+    def __init__(self, n, dF, dG, lambF=1E-2, lambG=0, epsilon=0.1):
+        super(EpsilonGreedy, self).__init__(n, dF, dG, lambF, lambG)
         self.epsilon = epsilon
         self.label = self.label + ", {0}-Greedy".format(epsilon)
 
@@ -118,24 +125,25 @@ class EpsilonGreedy(HardConstraint):
 
         assert np.isclose(np.sum(prob_vec), 1.0)
 
-        return np.random.choice(np.arange(self.n), None, p=prob_vec)
+        return np.random.choice(np.arange(self.n), None, p=prob_vec), prob_vec
 
 class LinUCB(HardConstraint):
-    def __init__(self, T, n, dF, dG, lambF=1E-2, lambG=0, alpha=0.01):
-        super(LinUCB, self).__init__(T, n, dF, dG, lambF, lambG)
+    def __init__(self, n, dF, dG, lambF=1E-2, lambG=0, alpha=0.01):
+        super(LinUCB, self).__init__(n, dF, dG, lambF, lambG)
         self.alpha = alpha
         self.label = self.label + ", LinUCB"
 
         self.Ainv = np.array([np.eye(self.dF) for i in range(self.n)]) * self.lambF
 
     def choice(self, t, context):
-        con_shape = context.shape[0]
         lcb = np.dot(self.phiF, context) - (self.alpha) * np.sqrt(np.dot(np.dot(context.T, self.Ainv), context))
 
-        return np.argmin(lcb)
+        p_vec = np.zeros(len(lcb))
+        p_vec[np.argmin(lcb)] = 1.0
+        return np.argmin(lcb), p_vec
 
-    def update(self, context, arm, loss, posthoc):
-        super(LinUCB, self).update(context, arm, loss, posthoc)
+    def update(self, context, arm, loss, posthoc, p = 1.0):
+        super(LinUCB, self).update(context, arm, loss, posthoc, 1.0)
 
         if self.usePosthoc == 2:
             # TODO, figure this out, low priority

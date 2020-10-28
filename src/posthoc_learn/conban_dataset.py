@@ -13,10 +13,10 @@ import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
 
-# from bite_selection_package.model.spanet import SPANet
+from bite_selection_package.model.spanet import SPANet
 from posthoc_learn.haptic import HapticNet, preprocess
 
-# from bite_selection_package.config import spanet_config
+from bite_selection_package.config import spanet_config
 from posthoc_learn.config import posthoc_config as config
 
 from PIL import Image, ImageEnhance, ImageFilter
@@ -29,6 +29,7 @@ class ConBanDataset:
 
     # Re-import from consolidated
     def _init_npz(self, consolidated_file):
+        self.haptic = None
         try:
             if Path(consolidated_file).exists():
                 data = np.load(consolidated_file, allow_pickle=True)
@@ -48,58 +49,78 @@ class ConBanDataset:
             self.dr_loss = data["dr_loss"]
         except KeyError as err:
             print("Invalid Consolidated File, Missing: {0}".format(err))
-            sys.exit(-1)
+            raise err
         except IOError as err:
             print("Cannot read Consolidated File: {0}".format(err))
-            sys.exit(-1)
+            raise err
 
         # Validate
         self._validate()
 
     # Create dataset from data folder
-    def __init__(self, name, visual_model=None, haptic_model=None):
-        if visual_model is None or haptic_model is None:
-            self._init_npz(name)
+    def __init__(self, name, visual_model=None, haptic_model=None, use_npz=True):
+        if use_npz:
+            # Try using data from consolidated file first
+            try:
+                self._init_npz(name)
+            except:
+                print("Falling back to non-consolidated dataset")
+                use_npz = False
+
+        # Check SPANet
+        if visual_model is not None:
+            spanet = SPANet(use_rgb=spanet_config.use_rgb, use_depth=False, use_wall=spanet_config.use_wall)
+            checkpoint = config.visual_dir / visual_model
+            if not checkpoint.exists():
+                print("No visual checkpoint: {0}".format(checkpoint))
+                sys.exit(-1)
+            spanet.load_state_dict(torch.load(checkpoint)['net'])
+
+            if config.use_cuda:
+                spanet = spanet.cuda()
+
+            spanet.eval()
+        elif use_npz == False:
+            print("Error: need visual model for non-consolidated dataset")
+            sys.exit(-1)
+
+        # Check Haptic
+        if haptic_model is not None:
+            self.haptic = HapticNet(config.n_haptic_features, config.n_haptic_categories)
+            checkpoint = config.haptic_dir / haptic_model
+            if not checkpoint.exists():
+                print("No haptic checkpoint: {0}".format(checkpoint))
+                sys.exit(-1)
+            self.haptic.load_state_dict(torch.load(checkpoint)['state_dict'])
+            self.haptic_features = []
+            def feature_hook(module, input, output):
+                self.haptic_features.clear()
+                self.haptic_features.append(output.cpu().detach().clone().numpy().flatten())
+            self.haptic.linear[3].register_forward_hook(feature_hook)
+
+            if config.use_cuda:
+                self.haptic = self.haptic.cuda()
+
+            self.haptic.eval()
+        elif use_npz == False:
+            print("Error: need haptic model for non-consolidated dataset")
+            sys.exit(-1)
+
+        if use_npz == True:
+            # Dataset already built
+            print("Using Consolidated Dataset")
             return
+
+        print("Using Raw Dataset")
+
         # Check datset dir
-        self.name = name
         dataset_dir = config.dataset_dir / name
         if not dataset_dir.exists():
             print("No dataset: {0}".format(dataset_dir))
             sys.exit(-1)
 
-        # Check SPANet
-        spanet = SPANet(use_rgb=spanet_config.use_rgb, use_depth=False, use_wall=spanet_config.use_wall)
-        checkpoint = config.visual_dir / visual_model
-        if not checkpoint.exists():
-            print("No visual checkpoint: {0}".format(checkpoint))
-            sys.exit(-1)
-        spanet.load_state_dict(torch.load(checkpoint)['net'])
-
-        if config.use_cuda:
-            spanet = spanet.cuda()
-
-        spanet.eval()
-
-        # Check Haptic
-        haptic = HapticNet(config.n_haptic_features, config.n_haptic_categories)
-        checkpoint = config.haptic_dir / haptic_model
-        if not checkpoint.exists():
-            print("No haptic checkpoint: {0}".format(checkpoint))
-            sys.exit(-1)
-        haptic.load_state_dict(torch.load(checkpoint)['state_dict'])
-        haptic_features = []
-        def feature_hook(module, input, output):
-            haptic_features.clear()
-            haptic_features.append(output.cpu().detach().clone().numpy().flatten())
-        haptic.linear[3].register_forward_hook(feature_hook)
-
-        if config.use_cuda:
-            haptic = haptic.cuda()
-
-        haptic.eval()
-
         # Loop Through Files
+        self.name = name
         self.context = []
         self.actionDis = []
         self.actionCon = []
@@ -158,25 +179,11 @@ class ConBanDataset:
 
             # Get Posthoc (Haptic Features)
             haptic_data = np.loadtxt(haptic_file, delimiter=',', skiprows=1)
-            haptic_data = preprocess(haptic_data)
-
-            # Crop to 6D, truncate to first frew rows after contact
-            haptic_data = haptic_data[:config.n_haptic_dims, :config.n_haptic_rows]
-
-            # Pad to number of rows if necessary
-            if haptic_data.shape[1] < config.n_haptic_rows:
-                haptic_data = np.pad(haptic_data, ((0, 0), (0, config.n_haptic_rows - haptic_data.shape[1])), 'edge')
-
-            haptic_data = transform(haptic_data).float()
-
-            if config.use_cuda:
-                haptic_data = haptic_data.cuda()
-
-            haptic(haptic_data)
-            self.posthoc.append(haptic_features[0])
+            
+            self.posthoc.append(self.get_haptic_features(haptic_data))
 
         # Convert lists to np arrays
-        assert len(self.context) > 0
+        assert len(self.context) > 0, "Could not load any valid data"
         self.context = np.vstack(self.context)
         self.posthoc = np.vstack(self.posthoc)
         self.actionDis = np.array(self.actionDis)
@@ -236,17 +243,17 @@ class ConBanDataset:
         actionNum = np.amax(self.actionDis) + 1
         print("Number of Actions: {0}".format(actionNum))
 
-        assert self.posthoc.shape[0] == data_amt
-        assert len(self.actionDis) == data_amt
-        assert len(self.loss) == data_amt
-        assert self.actionCon.shape[0] == data_amt
-        assert len(self.dr_category) == data_amt
-        assert self.dr_loss.shape == (data_amt, actionNum)
+        assert self.posthoc.shape[0] == data_amt, "Invalid posthoc"
+        assert len(self.actionDis) == data_amt, "Invalid discrete action"
+        assert len(self.loss) == data_amt, "Invalid loss"
+        assert self.actionCon.shape[0] == data_amt, "Invalid continuous action"
+        assert len(self.dr_category) == data_amt, "Invalid DR categories"
+        assert self.dr_loss.shape == (data_amt, actionNum), "Invlid DR loss"
 
         # DR is Sane
         for i in range(self.dr_loss.shape[0]):
-            assert np.amax(self.dr_loss[i, :]) <= actionNum
-            assert np.amin(self.dr_loss[i, :]) >= (1.0-actionNum)
+            assert np.amax(self.dr_loss[i, :]) <= actionNum, "DR loss too big"
+            assert np.amin(self.dr_loss[i, :]) >= (1.0-actionNum), "DR loss too small"
 
             masked = np.copy(self.dr_loss[i, :])
             if np.amax(self.dr_loss[i, :]) > 1.0:
@@ -259,13 +266,38 @@ class ConBanDataset:
                     print("Error in DR Loss: ")
                     print(self.dr_loss[i, :])
                     print(masked)
-                assert num <= 1.0
-                assert num >= 0.0
+                assert num <= 1.0, "DR loss above acceptable range"
+                assert num >= 0.0, "DR loss below acceptable range"
 
 
         print("### End Data Validation: " + self.name + " ###")
         print()
         self.num_samples = data_amt
+
+    # Run HapticNet on another bit of haptic data
+    def get_haptic_features(self, data):
+        # Make sure it is the dimensionality we need
+        assert data.shape[1] == (config.n_haptic_dims + 1), "Malformed haptic data" # Add 1 for Time
+
+        haptic_data = preprocess(data)
+
+        # Crop to 6D, truncate to first frew rows after contact
+        haptic_data = haptic_data[:config.n_haptic_dims, :config.n_haptic_rows]
+
+        # Pad to number of rows if necessary
+        if haptic_data.shape[1] < config.n_haptic_rows:
+            haptic_data = np.pad(haptic_data, ((0, 0), (0, config.n_haptic_rows - haptic_data.shape[1])), 'edge')
+
+        transform = transforms.Compose([
+                transforms.ToTensor()])
+
+        haptic_data = transform(haptic_data).float()
+
+        if config.use_cuda:
+            haptic_data = haptic_data.cuda()
+
+        self.haptic(haptic_data)
+        return np.copy(self.haptic_features[0])
 
 
     # Export dataset to consolidated file (npz compressed)
@@ -288,16 +320,27 @@ class ConBanDataset:
         return self.num_samples
 
     def __getitem__(self, idx):
-        return self.context[idx, :], self.posthoc[idx, :], self.dr_loss[idx, :]
+        return self.context[idx, :], self.posthoc[idx, :], self.dr_loss[idx, :], self.actionDis[idx], self.loss[idx], self.dr_category[idx]
 
-    def train_test_split(self, split, shuffle=True):
-        assert (split >= 0.0) and (split <= 1.0)
+    def get_dataset(self, shuffle=True, exclude=None):
+        env, _ = self.train_test_split(1.0, suffle, exclude)
+        return env
+
+    def train_test_split(self, split, shuffle=True, exclude=None):
+        assert (split >= 0.0) and (split <= 1.0), "Malformed Split"
 
         context = np.copy(self.context)
         posthoc = np.copy(self.posthoc)
         dr_loss = np.copy(self.dr_loss)
+        
+        if exclude is not None:
+            keep = np.where(self.dr_category != exclude)
+            context = context[keep, :]
+            posthoc = posthoc[keep, :]
+            dr_loss = dr_loss[keep, :]
+
         print("Total Samples:")
-        print(self.num_samples)
+        print(context.shape[0])
         if shuffle:
             indices = np.arange(self.num_samples)
             np.random.shuffle(indices)

@@ -28,3 +28,9 @@ haptic_dir = package_dir / "checkpoint" / "haptic"
 # Experiment Configuration
 train_split = 0.7
 ci = 0.9
+
+# Algoserver params
+server_name = 'conban_server'
+context_lambda = 1000.0
+posthoc_lambda = 100.0
+n_actions = 6

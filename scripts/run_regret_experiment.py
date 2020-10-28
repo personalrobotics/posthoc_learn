@@ -80,7 +80,8 @@ def run(bandits, contexts, posthocs, loss, noise=0):
         # Choose arm for each bandit
         I_t = []
         for bandit in bandits:
-            I_t.append(bandit.choice(t, contexts[t, :]))
+            ret, _ = bandit.choice(t, contexts[t, :])
+            I_t.append(ret)
 
         # Update bandits
         for i, bandit in enumerate(bandits):
@@ -114,10 +115,10 @@ def main(name, nRuns):
     bandits = []
 
     # Vanilla Greedy
-    bandits.append(banalg.LinUCB(T, K, dF, dG, fLambda, 0))
+    bandits.append(banalg.LinUCB(K, dF, dG, fLambda, 0))
 
     # Post Hoc Greedy
-    bandits.append(banalg.LinUCB(T, K, dF, dG, fLambda, gLambda))
+    bandits.append(banalg.LinUCB(K, dF, dG, fLambda, gLambda))
 
     # Run experiment
     print("Running Experiment...")

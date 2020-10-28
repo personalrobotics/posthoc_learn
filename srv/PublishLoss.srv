@@ -1,0 +1,12 @@
+# Feature Vector from SPANet
+float64[] visual
+# Raw haptic data, assuming 6D, row-wise
+float64[] haptic
+# Action taken
+int8 a_t
+float64 loss
+# Probability distribution of choosing each action
+float64[] p_t
+---
+# True on success and false on failure.
+bool success
