@@ -84,7 +84,6 @@ class HardConstraint(object):
             self.AGinv = np.linalg.inv(self.AGfull)
             for i in range(self.n):
                 A = self.AF[i, :] + self.AFG @ self.AGinv @ self.AG[i, :] @ self.AGinv @ self.AFG.T
-                assert np.isclose(A, A.T).all()
                 B = self.bF[i, :] + self.AFG @ self.AGinv @ self.bG[i, :]
                 self.phiF[i, :] = np.linalg.solve(A, B)
         else:

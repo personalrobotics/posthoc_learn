@@ -54,7 +54,8 @@ def run(bandits, contexts, posthocs, loss, noise=0):
 
     print("Running for {0} rounds!".format(T))
     for t in range(T):
-        print("Round: %d" % t)
+        if t % 100 == 0:
+            print("Round: %d" % t)
 
         # Choose arm for each bandit
         I_t = []
@@ -89,11 +90,54 @@ def gen_posthoc(dG, rewards):
     assert posthocs.shape == (T, dG)
     return posthocs, Ainv
 
+VAL_SIZE = 10000
+def gen_context(mndata, dF, trueTest=False):
+    print("Loading Training Set...")
+    images, labels = mndata.load_training()
+
+    if trueTest:
+        print("Loading Test Set...")
+        images_test, labels_test = mndata.load_testing()
+    else:
+        print("Loading Validation Set...")
+        images_test = images[len(images) - VAL_SIZE:len(images)]
+        images = images[0:len(images) - VAL_SIZE]
+        labels_test = labels[len(labels) - VAL_SIZE:len(labels)]
+        labels = labels[0:len(labels) - VAL_SIZE]
+
+    # Format labels
+    labels = np.array(labels)
+    labels_test = np.array(labels_test)
+    Ttrain = len(labels)
+    Ttest = len(labels_test)
+    print("T_train=%d" % Ttrain)
+    print("T_val=%d" % Ttest)
+    n = labels.max() + 1
+
+    # Create 1-hot rewards
+    rewards = np.zeros((Ttrain, n))
+    rewards[np.arange(labels.size),labels] = 1
+    rewards_test = np.zeros((Ttest, n))
+    rewards_test[np.arange(labels_test.size),labels_test] = 1
+
+    # PCA Contexts
+    images = np.array(images)
+    images_test = np.array(images_test)
+
+    print("Performing PCA...")
+    pca = PCA(n_components=dF)
+    contexts = pca.fit_transform(images)
+    contexts_test = pca.transform(images_test)
+    assert contexts.shape == (Ttrain, dF)
+    assert contexts_test.shape == (Ttest, dF)
+
+    return contexts, rewards, contexts_test, rewards_test
+
 def main(dF, dG):
 
     cacheFile = "cache_"+str(dF)+".npz"
 
-    if path.exists(cacheFile):
+    if Path(cacheFile).exists():
         print("Loading from Cache...")
         with np.load(cacheFile) as data:
             contexts = data["contexts"]
@@ -111,10 +155,43 @@ def main(dF, dG):
         print("Saving Cache...")
         np.savez_compressed(cacheFile, contexts=contexts, rewards=rewards, contexts_test=contexts_test, rewards_test=rewards_test)
 
-    T, K = rewards.shape
+    # Convert rewards to losses
+    losses = 1 - rewards
+    losses_test = 1 - rewards_test
+
+    T, K = losses.shape
+
+    # Best Linear Fit Possible
+    """
+    print("Best Linear Fit...")
+    print("Generating Matrices")
+    A = np.eye(dF)
+    b = np.zeros((dF, K))
+    for t in range(contexts.shape[0]):
+        A += np.outer(contexts[t, :], contexts[t, :])
+        b += np.outer(contexts[t, :], losses[t, :])
+    assert A.shape == (dF, dF)
+    assert b.shape == (dF, K)
+    print("Doing Fit")
+    phi = np.linalg.solve(A, b)
+    assert phi.shape == (dF, K)
+
+    print("Testing...")
+    err_count = 1.0
+    for i in range(contexts_test.shape[0]):
+        ans = contexts_test[i, :] @ phi
+        assert ans.size == K
+        if np.argmin(ans) != np.argmin(losses_test[i, :]):
+            err_count += 1.0
+
+    print("Error Rate: " + str(err_count / float(contexts_test.shape[0])))
+    """
+
+    # Generate Post-Hoc Contexts
+    posthocs, _ = gen_posthoc(dG, losses)
 
     # Constants
-    fLambda = 1E-7
+    fLambda = 1E7
     gLambda = 1E-7
 
     # Define bandits
@@ -141,7 +218,7 @@ def main(dF, dG):
         labels.append(bandit.label)
 
     title = "Augmented Contextual Bandit Regret"
-    plot(title, regrets, labels)
+    #plot(title, regrets, labels)
 
     # Save Regret Data
     np.savez("regrets_{0}_{1}_{2}_{3}.npz".format(T, K, dF, dG),

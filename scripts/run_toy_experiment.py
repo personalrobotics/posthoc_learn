@@ -128,10 +128,10 @@ def main(T, K, dF, dG):
         labels.append(bandit.label)
 
     title = "Augmented Contextual Bandit Regret"
-    plot(title, regrets, labels)
+    #plot(title, regrets, labels)
 
     # Save Regret Data
-    np.savez("regrets_{0}_{1}_{2}_{3}.npz".format(T, K, dF, dG),
+    np.savez("toy_{0}_{1}_{2}_{3}.npz".format(T, K, dF, dG),
         regrets = regrets)
 
 
