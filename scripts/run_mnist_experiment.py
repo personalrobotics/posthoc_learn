@@ -73,32 +73,45 @@ def run(bandits, contexts, posthocs, loss, noise=0):
     return cum_regrets
 
 
-def gen_data(T, K, dF, dG):
-    # Generate a random invertible matrix (dG x K)
+def gen_posthoc(dG, rewards):
+    # Generate a random invertible matrix reward[i, :] = A * posthocs[i, :]
+    # (n x T) = (n x dg) * (dg x T)
+    T, n = rewards.shape
 
     # Generate random matrix
-    A = np.random.rand(K, dG)
+    A = np.random.rand(n, dG)
 
     # Make sure it inverts
     Ainv = np.linalg.inv(A.T @ A) @ A.T
-    assert Ainv.shape == (dG, K)
+    assert Ainv.shape == (dG, n)
 
-    contexts = np.random.rand(T, dF)
-    assert contexts.shape == (T, dF)
-
-    posthocs = contexts[:, :dG]
+    posthocs = (Ainv @ rewards.T).T
     assert posthocs.shape == (T, dG)
+    return posthocs, Ainv
 
-    losses = posthocs @ Ainv
-    assert losses.shape == (T, K)
+def main(dF, dG):
 
-    return contexts, posthocs, losses
+    cacheFile = "cache_"+str(dF)+".npz"
 
-def main(T, K, dF, dG):
+    if path.exists(cacheFile):
+        print("Loading from Cache...")
+        with np.load(cacheFile) as data:
+            contexts = data["contexts"]
+            rewards = data["rewards"]
+            contexts_test = data["contexts_test"]
+            rewards_test = data["rewards_test"]
+    else:
+        # Import MNIST
+        print("Loading MNIST...")
+        mndata = MNIST('./mnist')
+        mndata.gz = True
 
-    # Load Dataset
-    print("Loading Dataset...")
-    contexts, posthocs, losses = gen_data(T, K, dF, dG)
+        # Load Contexts / Rewards
+        contexts, rewards, contexts_test, rewards_test = gen_context(mndata, dF)
+        print("Saving Cache...")
+        np.savez_compressed(cacheFile, contexts=contexts, rewards=rewards, contexts_test=contexts_test, rewards_test=rewards_test)
+
+    T, K = rewards.shape
 
     # Constants
     fLambda = 1E-7
@@ -136,7 +149,7 @@ def main(T, K, dF, dG):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 5:
-        print("Usage: main.py <T> <K> <dF> <dG>")
+    if len(sys.argv) != 3:
+        print("Usage: main.py <dF> <dG>")
         sys.exit(-1)
-    main(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
+    main(int(sys.argv[1]), int(sys.argv[2]))

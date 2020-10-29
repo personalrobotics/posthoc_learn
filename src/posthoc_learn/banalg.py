@@ -58,6 +58,7 @@ class HardConstraint(object):
         self.AF[arm, :] += outer
         self.AFfull += outer
         self.bF[arm, :] += loss * context / p
+        assert np.isclose(self.AF[arm, :], self.AF[arm, :].T).all()
 
         # Record Posthoc
         outer = np.outer(posthoc, posthoc) / p
@@ -83,6 +84,7 @@ class HardConstraint(object):
             self.AGinv = np.linalg.inv(self.AGfull)
             for i in range(self.n):
                 A = self.AF[i, :] + self.AFG @ self.AGinv @ self.AG[i, :] @ self.AGinv @ self.AFG.T
+                assert np.isclose(A, A.T).all()
                 B = self.bF[i, :] + self.AFG @ self.AGinv @ self.bG[i, :]
                 self.phiF[i, :] = np.linalg.solve(A, B)
         else:
@@ -102,7 +104,7 @@ class HardConstraint(object):
 class Greedy(HardConstraint):
     def __init__(self, n, dF, dG, lambF=1E-2, lambG=0):
         super(Greedy, self).__init__(n, dF, dG, lambF, lambG)
-        self.label = self.label = ", Greedy"
+        self.label = self.label + ", Greedy"
 
     def choice(self, t, context):
         ret = np.argmin(np.dot(context, self.phiF.T))
@@ -162,27 +164,48 @@ class Thompson(HardConstraint):
     def __init__(self, n, dF, dG, lambF=1E-2, lambG=0, var=1.0):
         super(Thompson, self).__init__(n, dF, dG, lambF, lambG)
         self.var = var
-        self.label = self.label + ", TS"
+        self.label = self.label + ", TS (Var: {0})".format(var)
 
-        self.covs = self.var * np.array([np.eye(dF) for i in range(n)])
+        self.means = np.zeros((n, dF))
+        self.covs = np.array([np.eye(dF) for i in range(n)])
 
-    @staticmethod
-    def _eigh_sample(mean, cov): 
-        s, v = np.linalg.eigh(cov) 
-        return mean + v * np.sqrt(s) @ np.random.standard_normal(mean.size)
-
+    """
     def choice(self, t, context):
         ret = np.zeros(self.n)
         
         for arm in range(self.n):
-            sample = Thompson._eigh_sample(self.phiF[arm, :], self.covs[arm, :, :])
+            sample = np.random.multivariate_normal(self.phiF[arm, :], self.covs[arm, :, :])
             assert sample.size == self.dF
             ret[arm] = np.dot(sample, context)
 
         p_vec = np.zeros(self.n)
         p_vec[np.argmin(ret)] = 1.0
         return np.argmin(ret), p_vec
+    """
+    def choice(self, t, context):
+        ret = np.zeros(self.n)
+        
+        for arm in range(self.n):
+            sample = np.random.multivariate_normal(self.means[arm, :], self.covs[arm, :, :])
+            ret[arm] = np.dot(sample, context)
 
+        p_vec = np.zeros(self.n)
+        p_vec[np.argmin(ret)] = 1.0
+        return np.argmin(ret), p_vec
+    """
+    def update(self, context, arm, loss, posthoc, p=1.0):
+        yt = loss
+        xt = context.reshape((self.dF, 1))
+
+        # Update variance, note likelihood and prior are assumed to be 1
+        old_cov_inv = np.linalg.inv(self.covs[arm, :, :])
+        self.covs[arm, :, :] = np.linalg.inv(old_cov_inv + xt@xt.T / self.var)
+
+        # Update mean, note prior is assumed to be 0
+        self.means[arm, :] = (self.covs[arm, :, :] @ ((old_cov_inv @ self.means[arm, :]).reshape((self.dF, 1)) + xt * yt)).flatten()
+        assert len(self.means[arm, :]) == self.dF
+
+    """
     def update(self, context, arm, loss, posthoc, p = 1.0):
         # Add noise to loss
         loss = loss + np.random.normal(scale=np.sqrt(1.0/self.var))
@@ -201,3 +224,4 @@ class Thompson(HardConstraint):
         else:
             # Normal Linear Regression
             self.covs[arm, :, :] = self.var * np.linalg.inv(self.AF[arm])
+    

@@ -59,3 +59,4 @@ CATKIN_IGNORE
 # Datasets
 *.npz
 data/datasets/initial
+scripts/mnist

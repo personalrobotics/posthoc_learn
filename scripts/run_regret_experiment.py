@@ -115,10 +115,14 @@ def main(name, nRuns):
     bandits = []
 
     # Vanilla Thompson
-    bandits.append(banalg.Thompson(K, dF, dG, fLambda, 0))
+    for a in [0.01, 0.1, 1, 10]:
+        bandits.append(banalg.LinUCB(K, dF, dG, fLambda, 0, a))
+
+    for a in [0.01, 0.1, 1, 10]:
+        bandits.append(banalg.EpsilonGreedy(K, dF, dG, fLambda, 0, a))
 
     # Post Hoc Thompson
-    bandits.append(banalg.Thompson(K, dF, dG, fLambda, gLambda))
+    #bandits.append(banalg.EpsilonGreedy(K, dF, dG, fLambda, gLambda))
 
     # Run experiment
     print("Running Experiment...")
