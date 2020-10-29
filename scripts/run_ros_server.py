@@ -43,19 +43,19 @@ if __name__ == '__main__':
     # Initialize algorithm
     if  args.algo == 'greedy':
         print('Greedy exploration')
-        algo = Greedy(config.n_actions, N_FEATURES, config.n_haptic_features, config.context_lambda, lambG)
+        algo = Greedy(config.n_actions, N_FEATURES, config.n_haptic_categories, config.context_lambda, lambG)
 
     elif args.algo == 'epsilon':
         print('Epsilon-greedy with epsilon {}'.format(args.epsilon))
-        algo = EpsilonGreedy(config.n_actions, N_FEATURES, config.n_haptic_features, config.context_lambda, lambG, args.epsilon)
+        algo = EpsilonGreedy(config.n_actions, N_FEATURES, config.n_haptic_categories, config.context_lambda, lambG, args.epsilon)
 
     elif args.algo == 'linUCB':
         print('LinUCB with alpha {}'.format(args.alpha))
-        algo = LinUCB(config.n_actions, N_FEATURES, config.n_haptic_features, config.context_lambda, lambG, args.alpha)
+        algo = LinUCB(config.n_actions, N_FEATURES, config.n_haptic_categories, config.context_lambda, lambG, args.alpha)
 
     elif args.algo == 'random':
         print('Random exploration')
-        algo = HardConstraint(config.n_actions, N_FEATURES, config.n_haptic_features, config.context_lambda, lambG)
+        algo = HardConstraint(config.n_actions, N_FEATURES, config.n_haptic_categories, config.context_lambda, lambG)
     else:
         exit('"{}" is not a valid algorithm type'.format(args.algo))
 

@@ -51,7 +51,7 @@ class HardConstraint(object):
 
     def update(self, context, arm, loss, posthoc, p = 1.0):
         # Valid Probability
-        assert p > 0.0 and p <= 1.0
+        assert p > 0.0
 
         # Record Context
         outer = np.outer(context, context) / p
@@ -156,3 +156,48 @@ class LinUCB(HardConstraint):
         else:
             # Normal Linear Regression
             self.Ainv[arm] = np.linalg.inv(self.AF[arm])
+
+class Thompson(HardConstraint):
+    # var = variance of Gaussian noise
+    def __init__(self, n, dF, dG, lambF=1E-2, lambG=0, var=1.0):
+        super(Thompson, self).__init__(n, dF, dG, lambF, lambG)
+        self.var = var
+        self.label = self.label + ", TS"
+
+        self.covs = self.var * np.array([np.eye(dF) for i in range(n)])
+
+    @staticmethod
+    def _eigh_sample(mean, cov): 
+        s, v = np.linalg.eigh(cov) 
+        return mean + v * np.sqrt(s) @ np.random.standard_normal(mean.size)
+
+    def choice(self, t, context):
+        ret = np.zeros(self.n)
+        
+        for arm in range(self.n):
+            sample = Thompson._eigh_sample(self.phiF[arm, :], self.covs[arm, :, :])
+            assert sample.size == self.dF
+            ret[arm] = np.dot(sample, context)
+
+        p_vec = np.zeros(self.n)
+        p_vec[np.argmin(ret)] = 1.0
+        return np.argmin(ret), p_vec
+
+    def update(self, context, arm, loss, posthoc, p = 1.0):
+        # Add noise to loss
+        loss = loss + np.random.normal(scale=np.sqrt(1.0/self.var))
+
+        super(Thompson, self).update(context, arm, loss, posthoc, 1.0)
+
+        if self.usePosthoc == 2:
+            # TODO, figure this out, low priority
+            for i in range(self.n):
+                self.covs[i, :, :] = self.var * self.AFinv
+        elif self.usePosthoc == 1:
+            # Post hoc
+            for i in range(self.n):
+                A = self.AF[i, :] + self.AFG @ self.AGinv @ self.AG[i, :] @ self.AGinv @ self.AFG.T
+                self.covs[i, :, :] = self.var * 2.0 * np.linalg.inv(A)
+        else:
+            # Normal Linear Regression
+            self.covs[arm, :, :] = self.var * np.linalg.inv(self.AF[arm])

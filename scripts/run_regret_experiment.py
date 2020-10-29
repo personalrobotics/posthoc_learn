@@ -114,11 +114,11 @@ def main(name, nRuns):
     # Define bandits
     bandits = []
 
-    # Vanilla Greedy
-    bandits.append(banalg.LinUCB(K, dF, dG, fLambda, 0))
+    # Vanilla Thompson
+    bandits.append(banalg.Thompson(K, dF, dG, fLambda, 0))
 
-    # Post Hoc Greedy
-    bandits.append(banalg.LinUCB(K, dF, dG, fLambda, gLambda))
+    # Post Hoc Thompson
+    bandits.append(banalg.Thompson(K, dF, dG, fLambda, gLambda))
 
     # Run experiment
     print("Running Experiment...")

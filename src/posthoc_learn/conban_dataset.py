@@ -92,12 +92,6 @@ class ConBanDataset:
                 print("No haptic checkpoint: {0}".format(checkpoint))
                 sys.exit(-1)
             self.haptic.load_state_dict(torch.load(checkpoint)['state_dict'])
-            self.haptic_features = []
-            def feature_hook(module, input, output):
-                self.haptic_features.clear()
-                self.haptic_features.append(output.cpu().detach().clone().numpy().flatten())
-            self.haptic.linear[3].register_forward_hook(feature_hook)
-
             if config.use_cuda:
                 self.haptic = self.haptic.cuda()
 
@@ -296,8 +290,8 @@ class ConBanDataset:
         if config.use_cuda:
             haptic_data = haptic_data.cuda()
 
-        self.haptic(haptic_data)
-        return np.copy(self.haptic_features[0])
+        ret = self.haptic(haptic_data)
+        return np.copy(ret.cpu().detach().clone().numpy().flatten())
 
 
     # Export dataset to consolidated file (npz compressed)
