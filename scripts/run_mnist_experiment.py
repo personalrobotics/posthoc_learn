@@ -188,7 +188,7 @@ def main(dF, dG):
     """
 
     # Generate Post-Hoc Contexts
-    posthocs, _ = gen_posthoc(dG, losses)
+    posthocs, _ = gen_posthoc(dG, losses_test)
 
     # Constants
     fLambda = 1E7
@@ -198,19 +198,25 @@ def main(dF, dG):
     bandits = []
 
     # Vanilla Greedy
-    bandits.append(banalg.EpsilonGreedy(K, dF, dG, fLambda, 0, 0.1))
+    bandits.append(banalg.LinUCB(K, dF, dG, fLambda, 0, 0.01))
+
+    bandits.append(banalg.LinUCB(K, dF, dG, fLambda, gLambda, 0.01))
 
     # Vanilla TS
     #bandits.append(banalg.Thompson(K, dF, dG, fLambda, 0, var))
     # Post Hoc Greedy
-    bandits.append(banalg.EpsilonGreedy(K, dF, dG, fLambda, gLambda, 0.1))
+    #bandits.append(banalg.EpsilonGreedy(K, dF, dG, fLambda, gLambda, 0.1))
 
     # Post Hoc Only
     #bandits.append(banalg.Thompson(K, dF, dG, 0, gLambda, 0.01))
 
     # Run experiment
     print("Running Experiment...")
-    regrets = run(bandits, contexts, posthocs, losses)
+
+    # Sample with replacement for bootstrapping
+    indices = np.random.randint(contexts_test.shape[0], size=contexts_test.shape[0])
+
+    regrets = run(bandits, contexts_test[indices, :], posthocs[indices, :], losses_test[indices, :])
 
     # Plot Cumulative Regret
     labels = []

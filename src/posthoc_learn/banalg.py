@@ -132,7 +132,7 @@ class LinUCB(HardConstraint):
     def __init__(self, n, dF, dG, lambF=1E-2, lambG=0, alpha=0.01):
         super(LinUCB, self).__init__(n, dF, dG, lambF, lambG)
         self.alpha = alpha
-        self.label = self.label + ", LinUCB"
+        self.label = self.label + ", LinUCB ({0})".format(alpha)
 
         self.Ainv = np.array([np.eye(self.dF) for i in range(self.n)]) * self.lambF
 
@@ -147,8 +147,8 @@ class LinUCB(HardConstraint):
         super(LinUCB, self).update(context, arm, loss, posthoc, 1.0)
 
         if self.usePosthoc == 2:
-            # TODO, figure this out, low priority
-            raise NotImplementedError
+            for i in range(self.n):
+                self.Ainv[i] = self.AFinv
         elif self.usePosthoc == 1:
             # Post hoc
             for i in range(self.n):
