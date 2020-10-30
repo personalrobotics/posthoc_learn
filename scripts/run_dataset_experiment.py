@@ -115,8 +115,9 @@ def main(name, nRuns):
     T_test = test[0].shape[0]
     dF = training[0].shape[1]
     dG = training[1].shape[1]
+    print("dG: " + str(dG))
     fLambda = 1000.0
-    gLambda = 1.0
+    gLambda = 10.0
 
     print("Training Rounds: " + str(T))
     print("Testing Rounds: " + str(T_test))
