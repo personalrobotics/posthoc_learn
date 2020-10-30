@@ -12,7 +12,7 @@ rospack = rospkg.RosPack()
 from bite_selection_package.config import spanet_config as spanet_config
 from posthoc_learn.config import posthoc_config as config
 
-N_FEATURES = 2048 if spanet_config.n_features==None else spanet_config.n_features
+N_FEATURES = 2049 if spanet_config.n_features==None else spanet_config.n_features+1
 PACKAGE_NAME = 'posthoc_learn'
 TIME = 0
 

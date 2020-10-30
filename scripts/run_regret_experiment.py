@@ -109,20 +109,17 @@ def main(name, nRuns):
     dF = contexts.shape[1]
     dG = posthocs.shape[1]
     fLambda = 1000.0
-    gLambda = 100.0
+    gLambda = 1.0
 
     # Define bandits
     bandits = []
 
-    # Vanilla Thompson
-    for a in [0.01, 0.1, 1, 10]:
-        bandits.append(banalg.LinUCB(K, dF, dG, fLambda, 0, a))
+    # Vanilla
+    #bandits.append(banalg.LinUCB(K, dF, dG, fLambda, 0, 0.01))
 
-    for a in [0.01, 0.1, 1, 10]:
-        bandits.append(banalg.EpsilonGreedy(K, dF, dG, fLambda, 0, a))
-
-    # Post Hoc Thompson
-    #bandits.append(banalg.EpsilonGreedy(K, dF, dG, fLambda, gLambda))
+    # Post Hoc
+    for a in [0.005, 0.01, 0.05, 0.1]:
+        bandits.append(banalg.LinUCB(K, dF, dG, fLambda, gLambda, a))
 
     # Run experiment
     print("Running Experiment...")

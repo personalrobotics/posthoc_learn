@@ -169,7 +169,8 @@ class ConBanDataset:
 
             _, visual_features = spanet(rgb_img, None)
 
-            self.context.append(visual_features.cpu().detach()[0].numpy().flatten())
+            # Add bias term
+            self.context.append(np.append(visual_features.cpu().detach()[0].numpy().flatten(), 1.0))
 
             # Get Posthoc (Haptic Features)
             haptic_data = np.loadtxt(haptic_file, delimiter=',', skiprows=1)
@@ -297,7 +298,9 @@ class ConBanDataset:
             haptic_data = haptic_data.cuda()
 
         ret = self.haptic(haptic_data)
-        return np.copy(ret.cpu().detach().clone().numpy().flatten())
+        ret = ret.cpu().detach().clone().numpy().flatten()
+        ret = np.append(ret, 1.0) # Add bias term
+        return ret
 
 
     # Export dataset to consolidated file (npz compressed)
