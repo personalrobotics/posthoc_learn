@@ -1,0 +1,7 @@
+# Feature Vector from SPANet
+float64[] visual
+---
+# Action
+int8 a_t
+# Probability distribution of choosing each action
+float64[] p_t

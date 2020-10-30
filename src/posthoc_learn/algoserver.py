@@ -14,10 +14,12 @@ from posthoc_learn.config import posthoc_config as config
 
 N_FEATURES = 2048 if spanet_config.n_features==None else spanet_config.n_features
 PACKAGE_NAME = 'posthoc_learn'
+TIME = 0
 
 def _handle_get_action(req, algo, verbose=True):
+    global TIME
     if verbose:
-        print('GetAction: called with len(features)={}'.format(len(req.features)))
+        print('GetAction: called with len(features)={}'.format(len(req.visual)))
 
     # Unflatten visual features.
     features = np.array(req.visual)
@@ -25,11 +27,12 @@ def _handle_get_action(req, algo, verbose=True):
     assert len(features) == N_FEATURES, "Malformed context"
 
     # Sample action
-    a_t, p_t = algo.choice(features)
+    a_t, p_t = algo.choice(TIME, features)
 
     if verbose:
-        print('GetAction: responding with a_t={} and len(p_t)={}'.format(a_t, len(p_t_flat)))
+        print('GetAction: responding with a_t={} and len(p_t)={}'.format(a_t, len(p_t)))
 
+    TIME = TIME + 1
     return GetActionResponse(a_t, p_t.flatten())
 
 def _handle_publish_loss(req, algo, dataset, path, verbose=True):
