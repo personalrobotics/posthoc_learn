@@ -17,7 +17,6 @@ haptic_model = "FCNcheckpoint_category_0_of_3fold_Adam.pth"
 n_haptic_categories = 4
 n_haptic_dims = 6
 n_haptic_rows = 64
-n_haptic_features = n_haptic_dims * n_haptic_rows
 
 # File Configuration
 consolidated_dir = package_dir / "data" / "consolidations"

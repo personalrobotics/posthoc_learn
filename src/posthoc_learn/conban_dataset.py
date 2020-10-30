@@ -86,7 +86,7 @@ class ConBanDataset:
 
         # Check Haptic
         if haptic_model is not None:
-            self.haptic = HapticNet(config.n_haptic_features, config.n_haptic_categories)
+            self.haptic = HapticNet(config.n_haptic_dims, config.n_haptic_categories)
             checkpoint = config.haptic_dir / haptic_model
             if not checkpoint.exists():
                 print("No haptic checkpoint: {0}".format(checkpoint))
@@ -173,8 +173,9 @@ class ConBanDataset:
 
             # Get Posthoc (Haptic Features)
             haptic_data = np.loadtxt(haptic_file, delimiter=',', skiprows=1)
-            
-            self.posthoc.append(self.get_haptic_features(haptic_data))
+            haptic_features = self.get_haptic_features(haptic_data)
+            # print("{0}: {1}".format(self.dr_category[-1], np.argmax(haptic_features)))
+            self.posthoc.append(haptic_features)
 
         # Convert lists to np arrays
         assert len(self.context) > 0, "Could not load any valid data"
@@ -268,24 +269,29 @@ class ConBanDataset:
         print()
         self.num_samples = data_amt
 
+    @staticmethod
+    def _resize(x, out_dim):
+        n_features = x.shape[0]
+        data_transform = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.Resize((n_features, out_dim))])
+
+        img = np.copy(x.view(x.size(0), x.size(2)).data.numpy()[:,:,None])
+        out = data_transform(img)
+        out = torch.from_numpy(np.asarray(out)).float()
+        if out.size(0) == out_dim:
+            out = out.permute(1,0)
+        return out
+
     # Run HapticNet on another bit of haptic data
     def get_haptic_features(self, data):
         # Make sure it is the dimensionality we need
         assert data.shape[1] == (config.n_haptic_dims + 1), "Malformed haptic data" # Add 1 for Time
 
-        haptic_data = preprocess(data)
+        haptic_data = torch.from_numpy(preprocess(data)).float()
 
-        # Crop to 6D, truncate to first frew rows after contact
-        haptic_data = haptic_data[:config.n_haptic_dims, :config.n_haptic_rows]
-
-        # Pad to number of rows if necessary
-        if haptic_data.shape[1] < config.n_haptic_rows:
-            haptic_data = np.pad(haptic_data, ((0, 0), (0, config.n_haptic_rows - haptic_data.shape[1])), 'edge')
-
-        transform = transforms.Compose([
-                transforms.ToTensor()])
-
-        haptic_data = transform(haptic_data).float()
+        # Resize to length 64 with billinear interpolation
+        haptic_data = ConBanDataset._resize(haptic_data, 64)
 
         if config.use_cuda:
             haptic_data = haptic_data.cuda()

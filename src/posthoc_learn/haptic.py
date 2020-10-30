@@ -137,11 +137,8 @@ def preprocess(data):
         data = data[:, crop1:crop2]
     time = data[0]
     data = data[1:, :]
-    vel = np.diff(data[0:6,:], axis=1)
-    vel = np.concatenate([vel, vel[:,-1].reshape(-1,1)], axis=1)
-    data = np.concatenate([data[0:6,:], vel, data[6:]], axis=0)
 
-    return data
+    return np.reshape(data, (data.shape[0], 1, data.shape[1]))
 
 ####### End Data Preprocessing ################
 
@@ -149,8 +146,10 @@ class HapticNet(nn.Module):
     def __init__(self, input_dim, num_categories, dropout=0.1):
         super(HapticNet, self).__init__()
 
+        self.input_dim = input_dim
+
         self.linear = nn.Sequential(
-            nn.Linear(6*64, 128),
+            nn.Linear(input_dim*64, 128),
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
@@ -160,7 +159,7 @@ class HapticNet(nn.Module):
         self.dropout = dropout
 
     def forward(self, input):
-        output = self.linear(input.view(-1,6*64))
+        output = self.linear(input.view(-1,self.input_dim*64))
         if self.dropout > 0 and self.training:
             output = F.dropout(output, training=self.training, p=self.dropout)
         output = self.softmax(output)
