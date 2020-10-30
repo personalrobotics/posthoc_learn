@@ -299,7 +299,8 @@ class ConBanDataset:
 
         ret = self.haptic(haptic_data)
         ret = ret.cpu().detach().clone().numpy().flatten()
-        ret = np.append(ret, 1.0) # Add bias term
+        # Haptic bias made it much, much worse
+        #ret = np.append(ret, 1.0) # Add bias term
         return ret
 
 
