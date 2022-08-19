@@ -170,7 +170,7 @@ class ConBanDataset:
             _, visual_features = spanet(rgb_img, None)
 
             # Add bias term
-            self.context.append(np.append(visual_features.cpu().detach()[0].numpy().flatten(), 1.0))
+            self.context.append(visual_features.cpu().detach()[0].numpy().flatten())
 
             # Get Posthoc (Haptic Features)
             haptic_data = np.loadtxt(haptic_file, delimiter=',', skiprows=1)
