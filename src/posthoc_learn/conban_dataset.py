@@ -78,7 +78,7 @@ class ConBanDataset:
             self.spanet.load_state_dict(torch.load(checkpoint)['net'])
 
             if config.use_cuda:
-                self.spanet = spanet.cuda()
+                self.spanet = self.spanet.cuda()
 
             self.spanet.eval()
         elif use_npz == False:

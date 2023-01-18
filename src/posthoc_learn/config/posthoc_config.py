@@ -11,7 +11,8 @@ use_cuda = True
 gpu_id = '0'
 
 # Data configuration
-data_name = "initial"
+data_name = "NONE"
+#data_name = "initial"
 visual_model = "food_spanet_all_rgb_wall_ckpt_best.pth"
 haptic_model = "FCNcheckpoint_category_0_of_3fold_Adam.pth"
 n_haptic_categories = 4
