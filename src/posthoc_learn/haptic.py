@@ -35,6 +35,9 @@ forceThr_arg = 0.1
 def crop(time, x_force, y_force, z_force, x_torque, y_torque, z_torque, start_idx = 0, attempt = 1):
     global crop_flag, prev_crop_flag, lookAhead, lookBehind, lookBehind_thr, lookAhead_thr, idx_init, idx_end
 
+    #print("Z Force:")
+    #print(z_force)
+
     z_force_cropped_t = []
     z_force_idx = []
     x_force_cropped = []
@@ -46,7 +49,8 @@ def crop(time, x_force, y_force, z_force, x_torque, y_torque, z_torque, start_id
     z_torque_cropped = []
     xy_torque_list = []
     xy_torque_cropped_t = []
-    # print len(z_force)
+    #print("Z Force Len: ")
+    #print(len(z_force))
     z_force = np.abs(z_force)
     for x, y in zip(x_force, y_force):
         xy_force = math.sqrt(x*x+y*y)
@@ -91,9 +95,12 @@ def crop(time, x_force, y_force, z_force, x_torque, y_torque, z_torque, start_id
             break
         forceThr = forceThr+0.01
 
-    #print z_force_idx
+    #print("Thresh Index: ")
+    #print(z_force_idx)
     if len(z_force_idx) < 1:
       print("cropping failed")
+      print("Z Force:")
+      print(z_force)
       return False, -1, -1
 
     idx_init = int(z_force_idx[0])

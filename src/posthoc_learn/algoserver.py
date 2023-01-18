@@ -24,7 +24,7 @@ def _handle_get_action(req, algo, dataset, verbose=True):
     if verbose:
         print('GetAction: called')
 
-    npImg = CvBridge().imgmsg_to_cv2(req.image, desired_encoding='rgb8')
+    npImg = CvBridge().imgmsg_to_cv2(req.image, desired_encoding='passthrough')
     pilImg = Image.fromarray(npImg)
 
     # Unflatten visual features.
@@ -47,7 +47,7 @@ def _handle_publish_loss(req, algo, dataset, path, verbose=True):
     try:
         # Convert everything to output array
         p_t = np.array(req.p_t)
-        npImg = CvBridge().imgmsg_to_cv2(req.image, desired_encoding='rgb8')
+        npImg = CvBridge().imgmsg_to_cv2(req.image, desired_encoding='passthrough')
         pilImg = Image.fromarray(npImg)
         visual = dataset.get_visual_features(pilImg)
         haptic = np.array(req.haptic)

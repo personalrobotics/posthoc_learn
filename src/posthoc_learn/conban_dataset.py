@@ -121,7 +121,8 @@ class ConBanDataset:
         dataset_dir = config.dataset_dir / name
         if not dataset_dir.exists():
             print("No existing dataset: {0}".format(dataset_dir))
-            print("Warning: Cannot perform pre-training")
+            print("Warning: Cannot perform pre-training.")
+            print("This is okay if you don't need it.")
             return
 
         print("Using Raw Dataset")
@@ -286,7 +287,7 @@ class ConBanDataset:
         if config.use_cuda:
             rgb_img = rgb_img.cuda()
 
-        _, visual_features = spanet(rgb_img, None)
+        _, visual_features = self.spanet(rgb_img, None)
 
         # Add bias term
         return np.append(visual_features.cpu().detach()[0].numpy().flatten(), 1.0)

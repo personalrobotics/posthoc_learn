@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   rospy
   std_msgs
+  sensor_msgs
 )
 
 ####### Message Generation ##############
@@ -23,6 +24,7 @@ catkin_python_setup()
 generate_messages(
   DEPENDENCIES
   std_msgs
+  sensor_msgs
 )
 
 ############# End Message Generation ##############
