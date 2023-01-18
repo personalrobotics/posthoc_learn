@@ -1,5 +1,5 @@
-# Feature Vector from SPANet
-float64[] visual
+# Visual image to send to SPANet
+sensor_msgs/Image image
 ---
 # Action
 int8 a_t

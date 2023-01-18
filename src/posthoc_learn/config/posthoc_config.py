@@ -33,4 +33,4 @@ ci = 0.9
 server_name = 'conban_server'
 context_lambda = 1000.0
 posthoc_lambda = 1.0
-n_actions = 6
+n_actions = 11

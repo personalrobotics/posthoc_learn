@@ -68,23 +68,25 @@ class ConBanDataset:
                 use_npz = False
 
         # Check SPANet
+        self.spanet = None
         if visual_model is not None:
-            spanet = SPANet(use_rgb=spanet_config.use_rgb, use_depth=False, use_wall=spanet_config.use_wall)
+            self.spanet = SPANet(use_rgb=spanet_config.use_rgb, use_depth=False, use_wall=spanet_config.use_wall)
             checkpoint = config.visual_dir / visual_model
             if not checkpoint.exists():
                 print("No visual checkpoint: {0}".format(checkpoint))
                 sys.exit(-1)
-            spanet.load_state_dict(torch.load(checkpoint)['net'])
+            self.spanet.load_state_dict(torch.load(checkpoint)['net'])
 
             if config.use_cuda:
-                spanet = spanet.cuda()
+                self.spanet = spanet.cuda()
 
-            spanet.eval()
+            self.spanet.eval()
         elif use_npz == False:
             print("Error: need visual model for non-consolidated dataset")
             sys.exit(-1)
 
         # Check Haptic
+        self.haptic = None
         if haptic_model is not None:
             self.haptic = HapticNet(config.n_haptic_dims, config.n_haptic_categories)
             checkpoint = config.haptic_dir / haptic_model
@@ -105,14 +107,6 @@ class ConBanDataset:
             print("Using Consolidated Dataset")
             return
 
-        print("Using Raw Dataset")
-
-        # Check datset dir
-        dataset_dir = config.dataset_dir / name
-        if not dataset_dir.exists():
-            print("No dataset: {0}".format(dataset_dir))
-            sys.exit(-1)
-
         # Loop Through Files
         self.name = name
         self.context = []
@@ -123,6 +117,14 @@ class ConBanDataset:
         self.dr_category = []
         self.dr_loss = []
 
+        # Check datset dir
+        dataset_dir = config.dataset_dir / name
+        if not dataset_dir.exists():
+            print("No existing dataset: {0}".format(dataset_dir))
+            print("Warning: Cannot perform pre-training")
+            return
+
+        print("Using Raw Dataset")
         dr_categories = set()
         actionNums = set()
 
@@ -153,24 +155,8 @@ class ConBanDataset:
                     self.loss.append(1)
 
             # Get Context (Visual Features)
-            rgb_img = Image.open(image_file)
-            if rgb_img.mode != 'RGB':
-                rgb_img = rgb_img.convert('RGB')
-            rgb_img = ConBanDataset._resize_img(rgb_img, 'RGB')
-
-            transform = transforms.Compose([
-                transforms.ToTensor()])
-
-            rgb_img = transform(rgb_img)
-            rgb_img = torch.stack([rgb_img])
-
-            if config.use_cuda:
-                rgb_img = rgb_img.cuda()
-
-            _, visual_features = spanet(rgb_img, None)
-
-            # Add bias term
-            self.context.append(np.append(visual_features.cpu().detach()[0].numpy().flatten(), 1.0))
+            visual_features = self.get_visual_features(Image.open(image_file))
+            self.context.append(visual_features)
 
             # Get Posthoc (Haptic Features)
             haptic_data = np.loadtxt(haptic_file, delimiter=',', skiprows=1)
@@ -284,8 +270,30 @@ class ConBanDataset:
             out = out.permute(1,0)
         return out
 
+    # Run SPANet on visual data
+    def get_visual_features(self, rgb_img):
+        assert self.spanet is not None, "No SPANet Provided"
+        if rgb_img.mode != 'RGB':
+            rgb_img = rgb_img.convert('RGB')
+        rgb_img = ConBanDataset._resize_img(rgb_img, 'RGB')
+
+        transform = transforms.Compose([
+            transforms.ToTensor()])
+
+        rgb_img = transform(rgb_img)
+        rgb_img = torch.stack([rgb_img])
+
+        if config.use_cuda:
+            rgb_img = rgb_img.cuda()
+
+        _, visual_features = spanet(rgb_img, None)
+
+        # Add bias term
+        return np.append(visual_features.cpu().detach()[0].numpy().flatten(), 1.0)
+
     # Run HapticNet on another bit of haptic data
     def get_haptic_features(self, data):
+        assert self.haptic is not None, "No Haptic Model Provided"
         # Make sure it is the dimensionality we need
         assert data.shape[1] == (config.n_haptic_dims + 1), "Malformed haptic data" # Add 1 for Time
 

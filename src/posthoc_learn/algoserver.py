@@ -12,17 +12,23 @@ rospack = rospkg.RosPack()
 from bite_selection_package.config import spanet_config as spanet_config
 from posthoc_learn.config import posthoc_config as config
 
+from cv_bridge import CvBridge
+from PIL import Image
+
 N_FEATURES = 2049 if spanet_config.n_features==None else spanet_config.n_features+1
 PACKAGE_NAME = 'posthoc_learn'
 TIME = 0
 
-def _handle_get_action(req, algo, verbose=True):
+def _handle_get_action(req, algo, dataset, verbose=True):
     global TIME
     if verbose:
-        print('GetAction: called with len(features)={}'.format(len(req.visual)))
+        print('GetAction: called')
+
+    npImg = CvBridge().imgmsg_to_cv2(req.image, desired_encoding='rgb8')
+    pilImg = Image.fromarray(npImg)
 
     # Unflatten visual features.
-    features = np.array(req.visual)
+    features = dataset.get_visual_features(pilImg)
     assert len(features) == features.size, "Multidimensional context"
     assert len(features) == N_FEATURES, "Malformed context"
 
@@ -37,11 +43,13 @@ def _handle_get_action(req, algo, verbose=True):
 
 def _handle_publish_loss(req, algo, dataset, path, verbose=True):
     if verbose:
-        print('PublishLoss: called with len(visual)={} a_t={} loss={} len(p_t)={} len(haptic)={}'.format(len(req.visual), req.a_t, req.loss, len(req.p_t), len(req.haptic)))
+        print('PublishLoss: called with a_t={} loss={} len(p_t)={} len(haptic)={}'.format(req.a_t, req.loss, len(req.p_t), len(req.haptic)))
     try:
         # Convert everything to output array
         p_t = np.array(req.p_t)
-        visual = np.array(req.visual)
+        npImg = CvBridge().imgmsg_to_cv2(req.image, desired_encoding='rgb8')
+        pilImg = Image.fromarray(npImg)
+        visual = dataset.get_visual_features(pilImg)
         haptic = np.array(req.haptic)
         loss = float(req.loss)
         a_t = int(req.a_t)
@@ -76,10 +84,10 @@ def _handle_publish_loss(req, algo, dataset, path, verbose=True):
         return PublishLossResponse(success=False)
     return PublishLossResponse(success=True)
 
-def start_get_action(algo, verbose=True):
+def start_get_action(algo, dataset, verbose=True):
     """Starts the `GetAction` service with a given algorithm"""
     def handle_wrapper(req):
-        return _handle_get_action(req, algo, verbose=verbose)
+        return _handle_get_action(req, algo, dataset, verbose=verbose)
     rospy.Service('GetAction', GetAction, handle_wrapper)
 
 def start_publish_loss(algo, dataset, path, verbose=True):
@@ -94,10 +102,10 @@ def create_server(algo, dataset, trial_name, excluded_item=None, server_name=con
     Provides the services `GetAction` and `PublishLoss`.
     """
     rospy.init_node(server_name)
-    start_get_action(algo, verbose=verbose)
+    start_get_action(algo, dataset, verbose=verbose)
 
     # Pretrain on dataset if requested
-    if excluded_item is not None:
+    if excluded_item is not None and len(dataset) > 0:
         print("Pretraining... Excluding: " + excluded_item)
         for i in range(len(dataset)):
             context, posthoc, _, a, loss, category = dataset[i]

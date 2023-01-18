@@ -55,6 +55,7 @@ def main(name, nTrials):
     print("Running Test...")
     for i in range(nTrials):
         print("Trial: " + str(i))
+        ## TODO: This will fail (expecting image), update to accept features directly too
         resp = get_action(contexts[i].tolist())
         assert resp.p_t[resp.a_t] == 1, "Incorrect max probability"
         assert np.all(np.array(resp.p_t) >= 0.0) and np.all(np.array(resp.p_t) <= 1.0), "Malformed probability bounds"
